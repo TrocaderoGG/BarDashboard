@@ -30,7 +30,7 @@ with sync_playwright() as p:
         page.get_by_label('From',exact=True).fill('2026-09-01')
         page.get_by_label('To',exact=True).fill('2026-09-30')
         page.get_by_role('button',name='Apply dates').click()
-        assert page.locator('.history-table tbody tr').count()==1
+        assert page.locator('.history-table').first.locator('tbody tr').count()==1
     page.screenshot(path=str(OUT/'history-desktop.png'))
 
     page.get_by_role('link',name='Order requests').click()

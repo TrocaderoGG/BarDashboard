@@ -66,5 +66,22 @@ test('PostgreSQL authorization and stock/request transactions',async t=>{
     await assert.rejects(rpc('import_sales_admin',{...payload,meta:{...payload.meta,id:'overlap'}}),/overlaps/);
     assert.equal((await db.query('select sum(gross_ore) total from public.sales_daily')).rows[0].total,'7000');
   });
+  await t.test('private purchase import reconciles and cannot change stock or duplicate history',async()=>{
+    await db.exec('reset role');
+    await db.exec(await readFile('supabase/purchases.sql','utf8'));
+    await db.exec(await readFile('supabase/purchases.sql','utf8'));
+    const purchase={id:'purchase-test',supplier:'Spendrups',invoice_number:'test',invoice_date:'2026-09-16',date:'2026-09-15',order_reference:'QP20260913',supplier_order:'test-order',delivery_number:'test-delivery',source_url:'https://drive.google.com/file/d/test/view',source_file:'test.pdf',status:'qp',issues:[],net_ore:10000,printed_net_ore:10000,lines:[{sku:'beer',description:'Beer',quantity:1,unit:'KLI',pack_size:null,unit_net_ore:10000,net_ore:10000,kind:'goods'}]};
+    const before=(await db.query('select count(*) from public.stock_movements')).rows[0].count;
+    assert.equal(await rpc('import_purchases_admin',[purchase]),1);
+    assert.equal(await rpc('import_purchases_admin',[purchase]),0);
+    await assert.rejects(rpc('import_purchases_admin',[{...purchase,id:'bad',net_ore:10001}]),/reconcile/);
+    await assert.rejects(rpc('import_purchases_admin',[{...purchase,id:'unknown',status:'review'}]),/Unreviewed/);
+    await assert.rejects(rpc('import_purchases_admin',[{...purchase,lines:[{...purchase.lines[0],description:'Changed'}]}]),/differs/);
+    assert.equal((await db.query('select count(*) from public.stock_movements')).rows[0].count,before);
+    await db.exec('set role anon');await assert.rejects(db.query('select * from public.purchase_orders'),/permission denied/);
+    await login(admin,'admin@example.org');assert.equal((await db.query('select * from public.purchase_orders')).rows.length,1);
+    await assert.rejects(rpc('import_purchases_admin',[purchase]),/permission denied/);
+    await login(member,'member@example.org');assert.equal((await db.query('select * from public.purchase_orders')).rows.length,0);
+  });
   await db.close();
 });

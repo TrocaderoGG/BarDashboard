@@ -95,3 +95,19 @@ For future CSVs, pass the actual coverage dates. Do not infer completeness from 
 Node tests exercise forecast calculations and run the real schema in an embedded PostgreSQL runtime. Permission tests cover anonymous users, signed-in outsiders, members, admins, private requests, role escalation, duplicate submission/delivery prevention, revocation and keg constraints. Python tests cover the CSV's localization and chapter/refund rules. `tests/browser_check.py` is an optional Playwright check of desktop/mobile form flows and the production lock screen; it requires Python Playwright and Chromium.
 
 The optional `read_stock_forecast` WebMCP tool is feature-detected and reads the same authorized state as the UI. It cannot change stock or bypass sign-in. A native WebMCP-capable browser is required to validate registration; standard Chromium QA does not claim that validation.
+
+## Private supplier purchase history
+
+Run `supabase/purchases.sql` after the base schema to enable the purchase section in Trends & history. It is an additive, repeatable migration; authenticated active members can read purchases, while only the database owner/service role can import. Until migration, the existing dashboard remains usable and shows a setup notice. Unexpected database errors are not hidden.
+
+The local receipt importer accepts a private JSON array of Drive PDF text records (`id`, `title`, `url`, `text`):
+
+```sh
+python scripts/import_receipts.py private/receipt-sources.json
+```
+
+Outputs in ignored `private/`: `purchases.json`, `purchases-review.json`, a review CSV, and `purchases-import.sql`. The last file bundles the migration and verified data for the Supabase SQL Editor. Never commit these outputs. The local preview reads the private purchases file; public builds contain no receipt data.
+
+Ownership follows each delivery/order's customer reference, not the invoice customer name or product names. Valid QP-plus-date references (including a hyphen or event suffix) qualify. Missing/unusual references are held for review, and explicit other references are excluded. `--legacy-qp` additionally accepts plain QP, six/eight-digit date-before-QP references and QP slash-date references after the owner confirms that rule. Reference text is preserved; dates are taken from the printed delivery date rather than interpreted from these legacy references. Mixed invoices are split by order/delivery; unknown layouts and mismatched totals are held aside. Review output covers all source files, including excluded and unparsed records.
+
+Purchase amounts exclude VAT and include printed packaging, returns and delivery charges. Martin & Servera can include deposits in product prices. Quantities preserve invoice units; unknown pack sizes stay unknown. Each included order's lines reconcile with its printed net total. Importing the same records twice is a no-op; conflicting records require reconciliation. Purchase history never changes stock, and does not establish that the folder contains every purchase. Delivery drafts, profit calculations, product price charts and automatic Google Drive synchronization are not implemented.

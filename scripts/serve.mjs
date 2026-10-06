@@ -9,7 +9,8 @@ createServer(async(req,res)=>{
     const path=new URL(req.url,'http://localhost').pathname;
     if(path==='/__preview/state') {
       const sales=await readFile('private/sales.json','utf8').then(JSON.parse).catch(()=>null);
-      res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(previewData(sales)));return;
+      const purchases=await readFile('private/purchases.json','utf8').then(JSON.parse).catch(()=>[]);
+      res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify({...previewData(sales),purchases,purchasesAvailable:true}));return;
     }
     const file=path==='/__preview/sales'?resolve('private/sales.json'):resolve(root,'.'+(path==='/'?'/index.html':path));
     if(path!=='/__preview/sales'&&!file.startsWith(root+'/')) {res.writeHead(403);res.end();return;}

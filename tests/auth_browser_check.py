@@ -35,6 +35,7 @@ with sync_playwright() as p:
         elif path=='/auth/v1/logout': code,data=204,None
         elif path=='/auth/v1/otp': code,data=400,{'message':'Email delivery is not configured'}
         elif path=='/rest/v1/rpc/my_role': data=state['role']
+        elif path=='/rest/v1/purchase_orders':code,data=404,{'code':'PGRST205','message':'Table missing'}
         elif path=='/rest/v1/products':
             data=[{'id':'guinness','definition':{'id':'guinness','name':'Guinness','group':'Beer & cider','unit':'cans','rate':21.7,'pack':24,'minimum':8,'supplier':'Martin & Servera'}}]
         route.fulfill(status=code,content_type='application/json',headers={'access-control-allow-origin':'*'},body='' if data is None and code==204 else json.dumps(data))
@@ -61,6 +62,8 @@ with sync_playwright() as p:
     page.get_by_label('Password',exact=True).fill('example-test-password')
     page.get_by_role('button',name='Sign in',exact=True).click()
     expect(page.get_by_role('heading',name='On the shelves')).to_be_visible()
+    page.get_by_role('link',name='Trends & history').click()
+    expect(page.get_by_text('Purchase history has not been set up in the database yet.')).to_be_visible()
     assert all(path!='/auth/v1/otp' for path,_ in calls)
     assert 'example-test-password' not in page.evaluate('JSON.stringify(sessionStorage)')
     assert page.evaluate('localStorage.length')==0

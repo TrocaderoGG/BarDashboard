@@ -18,7 +18,7 @@ async function call(path,{method='GET',body,auth=true,headers={}}={}) {
   }
   const res=await fetch(config.supabaseUrl+path,{method,headers:{apikey:config.supabaseKey,'Content-Type':'application/json',...(auth&&session?{Authorization:'Bearer '+session.access_token}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
   const result=res.status===204?null:await res.json().catch(()=>null);
-  if(!res.ok) {if(res.status===401&&auth)saveSession(null);throw Error(result?.message||result?.msg||result?.error_description||'The shared service could not complete this action. Try again.');}
+  if(!res.ok) {if(res.status===401&&auth)saveSession(null);const error=Error(result?.message||result?.msg||result?.error_description||'The shared service could not complete this action. Try again.');error.code=result?.code;throw error;}
   return result;
 }
 export const sendCode=email=>call('/auth/v1/otp',{method:'POST',body:{email,create_user:false},auth:false});
@@ -44,9 +44,12 @@ export async function loadData() {
   const role=await rpc('my_role',{});
   if(!role) throw Error('This account is not on the organization’s member list. Ask the barmaster for access.');
   const [products,counts,movements,events,requests,kegs,settings,sales,imports]=await Promise.all(['products','stock_counts','stock_movements','events','order_requests','keg_slots','product_settings','sales_daily','sales_imports'].map(rows));
+  let purchases=[],purchasesAvailable=true;
+  try {purchases=await rows('purchase_orders');}
+  catch(error) {if(['PGRST205','42P01'].includes(error.code))purchasesAvailable=false;else throw error;}
   const approvedDemand=await rpc('approved_demand',{});
   setCatalog(products.map(p=>p.definition));
-  return {role,products:products.map(p=>p.definition),counts,movements,events,requests,kegs,sales,imports,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
+  return {role,products:products.map(p=>p.definition),counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
 }
 export async function write(action,payload) {
   if(!preview) return rpc(action,{payload});
