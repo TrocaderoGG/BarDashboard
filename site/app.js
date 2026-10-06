@@ -7,7 +7,7 @@ const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;
 const paths={stock:'<path d="m12 3 9 5-9 5-9-5 9-5Zm-9 5v9l9 5 9-5V8M12 13v9M7 5.8l9 5"/>',history:'<path d="M4 3v17h17M8 15V9m5 6V5m5 10v-4"/>',requests:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v4H9zM9 12h6m-6 4h6"/>',plus:'<path d="M12 5v14M5 12h14"/>',lock:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/>',calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M7 3v4m10-4v4"/>',copy:'<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M15 8V3H3v13h5"/>',x:'<path d="m6 6 12 12M6 18 18 6"/>',time:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/>',check:'<path d="m5 12 5 5L20 6"/>',settings:'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>'};
 const icon=n=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${paths[n]||paths.stock}</svg>`;
 let data,filter='All products',route='stock',requestDraft={id:crypto.randomUUID(),lines:[{product_id:'',quantity:1}]},submitted=null;
-let range={from:'2026-01-01',to:'2026-10-03',category:'all'},working=false,authEmail='';
+let range={from:'2026-01-01',to:'2026-10-03',category:'all'},working=false,authEmail='',authMode='password';
 const admin=()=>data?.role==='admin';
 const button=(label,action,style='',attrs='')=>`<button class="btn ${style}" data-action="${action}" ${attrs}>${label}</button>`;
 const statusTag=s=>`<span class="tag ${['pending','To order'].includes(s)?'warning':['rejected','Out of stock'].includes(s)?'danger':s==='Uncounted'?'neutral':''}">${esc(s.charAt(0).toUpperCase()+s.slice(1))}</span>`;
@@ -57,7 +57,11 @@ function updateRequestSummary(){const summary=$('#request-summary');if(!summary)
 function render(){route=['stock','history','requests'].includes(location.hash.slice(1))?location.hash.slice(1):'stock';if(!data)return;document.title=`QP · ${{stock:'Stock Room',history:'Trends & history',requests:'Order requests'}[route]}`;({stock:stockPage,history:historyPage,requests:requestsPage})[route]();}
 async function refresh(){data=await api.loadData();render();}
 function authPage(message=''){
-  $('#app').innerHTML=`<main class="auth-wrap"><section class="auth-card"><div class="brand-mark">QP.</div><p class="eyebrow">Qlubbmästeriet</p><h1>Your stock room.</h1><p>Stock, sales history and event requests, together in one private workspace.</p>${message?`<div class="notice error" role="alert">${esc(message)}</div>`:''}${api.configured?`<form id="auth-form"><div class="field"><label for="auth-email">Organization email</label><input id="auth-email" type="email" name="email" autocomplete="email" value="${esc(authEmail)}" required ${authEmail?'readonly':''}></div>${authEmail?'<div class="field"><label for="auth-code">Code from your email</label><input id="auth-code" name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6,8}" required></div><p class="small muted">If your address is invited, you’ll receive a one-time sign-in code.</p>':''}<button class="btn primary" type="submit">${authEmail?'Sign in':'Email me a sign-in code'}</button></form>${authEmail?button('Use another email','reset-auth','quiet'):''}<p class="small muted spaced">Access is limited to members invited by the barmaster.</p>`:'<div class="notice info"><strong>Shared workspace setup is pending.</strong><br>The private database must be connected before members can sign in or submit requests.</div><p class="small muted">No inventory, sales or requests are stored in this public website.</p>'}</section></main>`;
+  const passwordMode=authMode==='password';
+  const fields=passwordMode
+    ? '<div class="field"><label for="auth-password">Password</label><input id="auth-password" name="password" type="password" autocomplete="current-password" required></div>'
+    : authEmail?'<div class="field"><label for="auth-code">Code from your email</label><input id="auth-code" name="code" autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6,8}" required></div><p class="small muted">If your address is invited, you’ll receive a one-time sign-in code.</p>':'';
+  $('#app').innerHTML=`<main class="auth-wrap"><section class="auth-card"><div class="brand-mark">QP.</div><p class="eyebrow">Qlubbmästeriet</p><h1>Your stock room.</h1><p>Stock, sales history and event requests, together in one private workspace.</p>${message?`<div class="notice error" role="alert">${esc(message)}</div>`:''}${api.configured?`<form id="auth-form"><div class="field"><label for="auth-email">Email address</label><input id="auth-email" type="email" name="email" autocomplete="username" value="${esc(authEmail)}" required ${!passwordMode&&authEmail?'readonly':''}></div>${fields}<button class="btn primary" type="submit">${passwordMode||authEmail?'Sign in':'Email me a sign-in code'}</button></form>${button(passwordMode?'Use an email code instead':'Use a password instead',passwordMode?'use-email-code':'use-password','quiet','type="button"')}${!passwordMode&&authEmail?button('Use another email','reset-auth','quiet'):''}<p class="small muted spaced">${passwordMode?'Use your Stock Room account. Password sign-in does not send an email.':'Email-code sign-in requires email delivery to be configured.'} Access is limited to approved members.</p>`:'<div class="notice info"><strong>Shared workspace setup is pending.</strong><br>The private database must be connected before members can sign in or submit requests.</div><p class="small muted">No inventory, sales or requests are stored in this public website.</p>'}</section></main>`;
 }
 const dialog=$('#dialog');
 function openDialog(title,content){dialog.innerHTML=`<div class="dialog-head"><h2 id="dialog-title">${esc(title)}</h2><button data-action="close-dialog" aria-label="Close">×</button></div><div class="dialog-body">${content}<div id="dialog-error" class="form-error" role="alert"></div></div>`;if(!dialog.open)dialog.showModal();}
@@ -98,6 +102,7 @@ document.addEventListener('click',async event=>{
     if(action==='refresh'){working=true;target.disabled=true;await refresh();toast('Workspace refreshed');}
     if(action==='signout'){data=null;await api.signOut();authEmail='';authPage();}
     if(action==='reset-auth'){authEmail='';authPage();}
+    if(action==='use-email-code'||action==='use-password'){authMode=action==='use-password'?'password':'code';authEmail='';authPage();}
     if(action==='copy-order'){
       const list=forecasts(data).filter(p=>p.packs>0);const text='QP · Suggested order\n'+[...new Set(list.map(p=>p.supplier))].map(s=>'\n'+s+'\n'+list.filter(p=>p.supplier===s).map(p=>`${p.name}: ${p.packs} packs (${p.packs*p.pack} ${p.unit})`).join('\n')).join('\n')+'\n\nCheck counts, pack sizes and supplier delivery timing before placing the order.';
       await navigator.clipboard.writeText(text);toast('Order list copied');
@@ -117,7 +122,8 @@ document.addEventListener('submit',async event=>{
   working=true;if(submit)submit.disabled=true;
   try {
     if(form.id==='auth-form'){
-      if(!authEmail){await api.sendCode(values.email);authEmail=values.email;authPage();}
+      if(authMode==='password'){authEmail=values.email.trim();await api.signInWithPassword(authEmail,values.password);await refresh();}
+      else if(!authEmail){await api.sendCode(values.email);authEmail=values.email;authPage();}
       else{await api.verifyCode(authEmail,values.code);await refresh();}
     }
     if(form.id==='history-filter'){

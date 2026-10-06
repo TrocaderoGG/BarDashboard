@@ -97,8 +97,9 @@ with sync_playwright() as p:
     expect(prod.get_by_role('heading',name='Your stock room.')).to_be_visible()
     config_text=(ROOT/'dist/config.js').read_text()
     if 'https://' in config_text:
-        expect(prod.get_by_label('Organization email',exact=True)).to_be_visible()
-        expect(prod.get_by_role('button',name='Email me a sign-in code')).to_be_visible()
+        expect(prod.get_by_label('Email address',exact=True)).to_be_visible()
+        expect(prod.get_by_label('Password',exact=True)).to_be_visible()
+        expect(prod.get_by_role('button',name='Sign in',exact=True)).to_be_visible()
     else:
         expect(prod.get_by_text('Shared workspace setup is pending.',exact=True)).to_be_visible()
     assert not any('__preview' in r or 'sales.json' in r for r in requests)

@@ -22,6 +22,9 @@ async function call(path,{method='GET',body,auth=true,headers={}}={}) {
   return result;
 }
 export const sendCode=email=>call('/auth/v1/otp',{method:'POST',body:{email,create_user:false},auth:false});
+export async function signInWithPassword(email,password) {
+  saveSession(await call('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password},auth:false}));
+}
 export async function verifyCode(email,token) {saveSession(await call('/auth/v1/verify',{method:'POST',body:{email,token,type:'email'},auth:false}));}
 export async function signOut(){try{if(configured&&session)await call('/auth/v1/logout',{method:'POST'});}finally{saveSession(null);}}
 export const rpc=(name,body)=>call('/rest/v1/rpc/'+name,{method:'POST',body});

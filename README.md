@@ -30,9 +30,21 @@ The currently enabled branch-based GitHub Pages hosting uses the repository's ro
 
 GitHub Pages hosts static files. It cannot authenticate organization members or save shared requests by itself. This implementation uses **Supabase Auth + PostgreSQL** as the authenticated data service. The public site is only a sign-in shell; all business data is protected by server-enforced membership checks, not a hidden route or a client-side password.
 
+### Try it privately without SMTP
+
+Password sign-in is the default and requires no email sender or organization rollout. After running the database scripts:
+
+1. In Supabase **Authentication → Users → Add user → Create new user**, create a personal test account with an email and password and enable **Auto Confirm User** for this owner-created test account. Use an address you control. Public sign-ups can remain disabled. This account is separate from the account used to sign into the Supabase dashboard.
+2. Add that exact lowercase address to `public.members` with role `admin` (the SQL example below applies). If it already exists in `members`, update its role rather than inserting it again. If an earlier invited Auth user has no password, create a separate test account instead of relying on the email password-reset flow.
+3. Open the website and sign in with that test account's email and password. Do not share the password in chat or commit it. The browser exchanges it directly with Supabase Auth; only the resulting session tokens are retained per tab.
+
+Private membership rules, stock writes and order approvals are unchanged. No email is sent during password sign-in. Email codes remain an optional mode for later; only that mode and email-based invitations/resets need email delivery. For a second-user test, manually create a second test account the same way and give it the `member` role.
+
+### Full setup and optional email codes
+
 1. Create a dedicated Supabase project. Run `supabase/schema.sql`, then `supabase/catalog.sql`, in its SQL editor. The schema is an initial migration for a **new project**; it deliberately restricts grants in the `public` schema. Do not run it in an unrelated existing application.
-2. In **Authentication → Providers → Email**, enable email authentication and disable public sign-ups. Configure the **Magic Link** email template to show `{{ .Token }}` as the sign-in code. The site uses email + code, so members do not need GitHub accounts. Set the site URL and any requested allowed origins to the eventual Pages URL. Configure a production SMTP sender; Supabase's default sender is restricted and is not sufficient for arbitrary organization invitees.
-3. Invite the barmaster and members through **Authentication → Users**. Add their exact verified email addresses to `public.members`; only the barmaster receives `admin`. Example (replace the addresses):
+2. In **Authentication → Providers → Email**, enable email authentication and disable public sign-ups. Email/password testing does not require SMTP. If you later want email codes, configure the **Magic Link** email template to show `{{ .Token }}`, set the site URL to the Pages URL, and configure a production SMTP sender. Supabase's default sender is restricted and is not sufficient for arbitrary organization invitees. Neither sign-in mode requires GitHub accounts.
+3. Create the barmaster and test members manually as described above, or invite them through **Authentication → Users** once email delivery is configured. Add their exact confirmed email addresses to `public.members`; only the barmaster receives `admin`. Example (replace the addresses):
 
    ```sql
    insert into public.members(email,role) values
