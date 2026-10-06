@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+import {templates,countQuantity} from '../site/inventory-model.js';
+const id='11111111-1111-4111-8111-111111111111';
+test('confirmed packaging and fractional bottle conversion',()=>{
+ assert.equal(countQuantity(templates.soda,{full:3,loose:10}),70);
+ assert.equal(countQuantity(templates.redbull,{full:2,loose:3}),51);
+ assert.equal(countQuantity(templates.mariestad,{full:2,loose:4}),34);
+ for(const t of ['briskaCan','briskaGlass','ice'])assert.equal(countQuantity(templates[t],{full:1,loose:0}),24);
+ assert.equal(countQuantity(templates.spirit,{full:2,opened:[.5,.25]}),2.75);
+ assert.throws(()=>countQuantity(templates.spirit,{full:1,opened:[1.5]}));
+});
+test('catalogue and resumable partial counts preserve history and reject conflicting edits',async()=>{
+ const db=new PGlite();
+ await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;create function auth.uid() returns uuid language sql stable as $$select (auth.jwt()->>'sub')::uuid$$;grant usage on schema auth to authenticated,anon;grant execute on all functions in schema auth to authenticated,anon;`);
+ await db.exec(await readFile('supabase/schema.sql','utf8'));await db.exec(await readFile('supabase/catalog.sql','utf8'));
+ await db.exec(await readFile('supabase/inventory.sql','utf8'));await db.exec(await readFile('supabase/inventory.sql','utf8'));
+ await db.exec(`insert into auth.users values('${id}');insert into public.members values('admin@example.org','admin',true),('member@example.org','member',true);`);
+ const login=async(email)=>{await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:id,email})]);await db.exec('set role authenticated');};
+ const rpc=async(name,payload)=>(await db.query(`select public.${name}($1::jsonb) value`,[JSON.stringify(payload)])).rows[0].value;
+ const p={id:'gin70',name:'Gin 70 cl',...templates.spirit,flavour:'House',location:'Spirits shelf',shelf:1,reorder:false,archived:false,rate:0,minimum:0,requestFactor:1,supplier:'Supplier'};
+ await login('member@example.org');await assert.rejects(rpc('save_product',{definition:p,version:0}),/Barmaster/);
+ await login('admin@example.org');assert.equal(await rpc('save_product',{definition:p,version:0}),1);
+ await assert.rejects(rpc('save_product',{definition:{...p,sizeMl:1000},version:1}),/new variant/);
+ const session={id:crypto.randomUUID(),revision:0,location:'Spirits shelf',lines:{gin70:{full:2,loose:0,opened:[.5,.25],confirmed:true,productVersion:1,baseline:null,counted_at:new Date().toISOString()}}};
+ session.revision=await rpc('save_count_session',session);
+ await assert.rejects(rpc('save_count_session',{...session,revision:0}),/another device/);
+ const resumed=(await db.query('select * from public.count_sessions')).rows[0];assert.equal(resumed.lines.gin70.opened.length,2);
+ assert.equal(await rpc('finish_count_session',session),true);assert.equal(await rpc('finish_count_session',session),true);
+ let counts=(await db.query('select * from public.stock_counts')).rows;assert.equal(counts.length,1);assert.equal(Number(counts[0].quantity),2.75);assert.equal(counts[0].details.estimated,true);
+ // Untouched products have no count; explicit zero is permitted, even above planning capacity for other counts.
+ const soda=(await db.query("select * from public.products where id='cola'")).rows[0];
+ const draft={id:crypto.randomUUID(),revision:0,lines:{cola:{full:3,loose:10,opened:[],confirmed:true,productVersion:soda.version,baseline:null,counted_at:new Date().toISOString()}}};
+ draft.revision=await rpc('save_count_session',draft);await rpc('finish_count_session',draft);
+ assert.equal(Number((await db.query("select quantity from public.stock_counts where product_id='cola'")).rows[0].quantity),70);
+ // A stale concurrent session must not replace a newer count.
+ const stale={...session,id:crypto.randomUUID(),revision:0};stale.revision=await rpc('save_count_session',stale);
+ await assert.rejects(rpc('finish_count_session',stale),/Another count/);
+ const current=(await db.query("select counted_at from public.stock_counts where product_id='gin70'")).rows[0].counted_at;
+ const zero={id:crypto.randomUUID(),revision:0,lines:{gin70:{full:0,opened:[],confirmed:true,productVersion:1,baseline:current,counted_at:new Date().toISOString()}}};
+ zero.revision=await rpc('save_count_session',zero);await rpc('finish_count_session',zero);
+ assert.equal((await db.query("select quantity from public.stock_counts where product_id='gin70' order by counted_at desc limit 1")).rows[0].quantity,'0');
+ assert.equal(await rpc('save_product',{definition:{...p,archived:true},version:1}),2);
+ await assert.rejects(rpc('save_product',{definition:p,version:1}),/changed elsewhere/);
+ assert.equal((await db.query("select * from public.stock_counts where product_id='gin70'")).rows.length,2);
+ await assert.rejects(rpc('submit_request',{id:crypto.randomUUID(),event_name:'Test',event_date:'2099-01-01',guests:10,requester_name:'Test',lines:[{product_id:'gin70',quantity:1}],notes:''}),/archived/);
+ await login('member@example.org');assert.equal((await db.query('select * from public.count_sessions')).rows.length,0);
+ await assert.rejects(rpc('finish_count_session',draft),/Barmaster/);
+ await db.exec('reset role;set role anon');await assert.rejects(db.query('select * from public.count_sessions'),/permission denied/);
+ await db.close();
+});

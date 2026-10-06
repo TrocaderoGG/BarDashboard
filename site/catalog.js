@@ -2,7 +2,7 @@
 export const CATALOG = [];
 export const PRODUCT = {};
 export function setCatalog(products) {
-  CATALOG.splice(0,CATALOG.length,...products);
+  CATALOG.splice(0,CATALOG.length,...products.filter(p=>!p.archived));
   for(const key of Object.keys(PRODUCT)) delete PRODUCT[key];
   Object.assign(PRODUCT,Object.fromEntries(products.map(p=>[p.id,p])));
 }

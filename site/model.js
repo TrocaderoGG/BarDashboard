@@ -28,7 +28,7 @@ export function forecasts(data, at=new Date(), horizon=2) {
     const stock=stockFor(product,data,at);
     const next=upcoming.slice(0,horizon);
     const demand=next.reduce((s,e)=>s+eventDemand(e,product,data.approvedDemand||data.requests),0);
-    const needed=stock.quantity===null?null:Math.max(0,demand+product.minimum-stock.quantity);
+    const needed=stock.quantity===null?null:product.reorder===false?0:Math.max(0,demand+product.minimum-stock.quantity);
     const wanted=needed===null?null:Math.ceil(needed/product.pack);
     let maxPacks=product.capacity==null?Infinity:Math.max(0,Math.floor((product.capacity-(stock.quantity||0))/product.pack));
     if(product.id==='tap' && data.kegs?.length) maxPacks=Math.min(maxPacks,data.kegs.filter(k=>k.state==='empty').length);
@@ -46,7 +46,7 @@ export function validateRequest(draft, now=today()) {
   if(!Array.isArray(draft.lines)||!draft.lines.length||draft.lines.length>30) throw Error('Add between 1 and 30 products.');
   const seen=new Set();
   for(const line of draft.lines) {
-    if(!PRODUCT[line.product_id]||seen.has(line.product_id)) throw Error('Choose each product only once.');
+    if(!PRODUCT[line.product_id]||PRODUCT[line.product_id].archived||seen.has(line.product_id)) throw Error('Choose each product only once.');
     if(!Number.isInteger(Number(line.quantity))||line.quantity<1||line.quantity>10000) throw Error('Enter whole quantities between 1 and 10,000.');
     seen.add(line.product_id);
   }
@@ -54,7 +54,7 @@ export function validateRequest(draft, now=today()) {
   return {...draft, guests:Number(draft.guests),event_name:draft.event_name.trim(),requester_name:draft.requester_name.trim(),lines:draft.lines.map(l=>({...l,quantity:Number(l.quantity)}))};
 }
 export function requestSummary(lines, guests) {
-  const servings=lines.filter(l=>PRODUCT[l.product_id]).reduce((s,l)=>s+Math.max(0,Number(l.quantity)||0)*(PRODUCT[l.product_id].requestFactor||1)*(l.product_id==='sparkling'?6:1),0);
+  const servings=lines.filter(l=>PRODUCT[l.product_id]).reduce((s,l)=>s+Math.max(0,Number(l.quantity)||0)*(PRODUCT[l.product_id].requestFactor||1)*(PRODUCT[l.product_id].countMode==='bottle'?PRODUCT[l.product_id].sizeMl/40:l.product_id==='sparkling'?6:1),0);
   return { servings, perGuest:guests>0?servings/guests:0, flagged:guests>0 && servings/guests>4 };
 }
 export function aggregateSales(rows, from, to, category='all') {

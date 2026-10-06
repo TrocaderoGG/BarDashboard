@@ -59,7 +59,7 @@ with sync_playwright() as p:
     expect(page.locator('.request-card .tag')).to_have_text('Approved')
 
     page.get_by_role('link',name='Stock overview').click()
-    page.get_by_role('button',name='Update stock',exact=False).click()
+    page.get_by_role('button',name='Deliveries & kegs',exact=False).click()
     page.get_by_role('button',name='Enter a count').click()
     page.locator('#count-guinness').fill('48')
     page.get_by_role('button',name='Apply preview count').click()

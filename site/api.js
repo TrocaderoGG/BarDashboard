@@ -1,3 +1,4 @@
+import {normalizeProduct,countQuantity} from './inventory-model.js';
 import {config} from './config.js';
 import {setCatalog} from './catalog.js';
 export const preview = ['localhost','127.0.0.1','[::1]'].includes(location.hostname);
@@ -39,7 +40,7 @@ let local;
 export async function loadData() {
   if(preview) {
     if(!local) local=await fetch('./__preview/state').then(r=>{if(!r.ok)throw Error('Local preview data is unavailable.');return r.json();});
-    setCatalog(local.products);return structuredClone(local);
+    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.inventoryAvailable=true;local.countSessions??=[];setCatalog(local.products);return structuredClone(local);
   }
   const role=await rpc('my_role',{});
   if(!role) throw Error('This account is not on the organization’s member list. Ask the barmaster for access.');
@@ -47,14 +48,31 @@ export async function loadData() {
   let purchases=[],purchasesAvailable=true;
   try {purchases=await rows('purchase_orders');}
   catch(error) {if(['PGRST205','42P01'].includes(error.code))purchasesAvailable=false;else throw error;}
+  let countSessions=[],inventoryAvailable=products.every(p=>p.version!==undefined);
+  if(inventoryAvailable&&role==='admin'){try{countSessions=await rows('count_sessions');}catch(error){if(['PGRST205','42P01'].includes(error.code))inventoryAvailable=false;else throw error;}}
   const approvedDemand=await rpc('approved_demand',{});
-  setCatalog(products.map(p=>p.definition));
-  return {role,products:products.map(p=>p.definition),counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
+  const catalogue=products.map(p=>normalizeProduct({...p.definition,_version:p.version||1}));setCatalog(catalogue);
+  return {role,products:catalogue,countSessions,inventoryAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
 }
 export async function write(action,payload) {
   if(!preview) return rpc(action,{payload});
   // Deliberately ephemeral: this local review mode never claims to share or save data.
   const now=new Date().toISOString();
+  if(action==='save_product') {
+    const i=local.products.findIndex(p=>p.id===payload.definition.id),version=(local.products[i]?._version||0)+1;
+    const product={...payload.definition,_version:version};if(i<0)local.products.push(product);else local.products[i]=product;
+    delete local.settings[product.id];return version;
+  }
+  if(action==='save_count_session'){
+    local.countSessions??=[];let s=local.countSessions.find(s=>s.id===payload.id);
+    if(s){if(s.revision!==payload.revision)throw Error('Draft changed');Object.assign(s,structuredClone(payload),{revision:s.revision+1});}
+    else{ s={...structuredClone(payload),revision:1,status:'draft'};local.countSessions.push(s); }return s.revision;
+  }
+  if(action==='finish_count_session'){
+    const s=local.countSessions.find(s=>s.id===payload.id);if(s.status==='published')return true;
+    if(!payload.discard)for(const [id,line] of Object.entries(s.lines))if(line.confirmed){const p=local.products.find(p=>p.id===id);local.counts.push({id:crypto.randomUUID(),product_id:id,quantity:countQuantity(p,line),counted_at:line.counted_at,details:{...line,estimated:p.countMode==='bottle'&&line.opened.length>0}});}
+    s.status=payload.discard?'discarded':'published';return true;
+  }
   if(action==='submit_request'){
     if(!local.requests.some(r=>r.id===payload.id))local.requests.unshift({...payload,created_at:now,status:'pending',user_id:'preview',review_note:null});
     return payload.id;
