@@ -42,8 +42,8 @@ GitHub Pages hosts static files. It cannot authenticate organization members or 
 4. Add these **GitHub repository Actions variables**, not privileged secrets, under **Settings → Secrets and variables → Actions → Variables**:
    - `SUPABASE_URL`: `https://<project-ref>.supabase.co`
    - `SUPABASE_PUBLISHABLE_KEY`: the `sb_publishable_…` key or legacy `anon` key. **Never use a service-role or secret key.**
-5. In **Settings → Pages**, select **GitHub Actions** as the build source. Keep this repository private. GitHub Pages for a private personal repository requires an eligible GitHub paid plan; if GitHub does not offer Pages here, a plan change or different static host is needed. The hosted shell is publicly reachable even though database content is organization-only. The repository must not be made public to work around plan limits.
-6. Run **Check and publish Stock Room**. Deployments are skipped until both database variables exist. The workflow returns the real Pages URL after deployment; do not assume a guessed URL is live.
+5. In **Settings → Pages**, select **GitHub Actions** as the build source. This repository is public by the owner's choice. Source files and commit history are publicly readable; do not commit real inventory, requests, sales exports or database secrets. The hosted shell is publicly reachable even though database content is organization-only.
+6. Run **Check and publish Stock Room**. Every successful push to `main` publishes the website. Without the database variables, it displays the setup screen and does not load organization data or accept requests. After the database is configured, rerun the workflow to publish the sign-in-enabled site. The workflow returns the real Pages URL after deployment.
 7. Sign in as the barmaster, enter the first real counts, verify planning reserves and add actual upcoming openings. No real stock count or schedule has been invented. Test sign-in and an actual shared request from a second member before handing out the link.
 
 The shared production setup needs these external account steps; none of them is falsely represented by the local preview.
@@ -59,17 +59,7 @@ python scripts/import_sales.py /path/to/forsaljningsrapport-2026-01-01_2026-10-0
 
 This writes `private/sales.json` for local review and `private/sales.sql` for the Supabase SQL editor. Both are ignored by Git and excluded from the static build. The raw export is never copied. Account emails, payment methods and transaction identifiers are discarded before aggregation.
 
-For the supplied file the verified totals are:
-
-| Check | Result |
-|---|---:|
-| Source rows | 18,021 |
-| Included QP rows | 8,185 |
-| Other-chapter rows excluded | 9,795 |
-| Uncategorized rows held aside | 41 |
-| QP refund rows | 3 |
-| Net units, including tickets and food | 10,216 |
-| Gross sales after refunds | 408,086.00 SEK |
+The importer prints its reconciliation summary and stores verified totals in the ignored `private/` directory. Keep these business figures out of the public source repository. Earlier README revisions contained historical aggregate sales figures; removing them here does not remove them from Git history.
 
 Included categories are QP, QP-NPR, QP-VPR, QP-Pitbull and QP-Plåt. A `QP` product-name prefix alone never overrides another chapter's explicit category. A blank-category refund is matched only when that exact product has one unambiguous category across the export. The import RPC is restricted to the database owner/service role; browser accounts cannot call it. Reimporting the same file is a no-op; overlapping date ranges are rejected to prevent duplicate revenue.
 
