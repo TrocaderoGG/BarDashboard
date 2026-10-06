@@ -41,11 +41,11 @@ GitHub Pages hosts static files. It cannot authenticate organization members or 
    ```
 
    This explicit allowlist does not assume everyone at `kth.se` or `ths.kth.se` belongs to QP. To revoke access, set `active=false`; authorization changes on the next server request even for existing login sessions. The browser cannot edit this allowlist or grant itself a role.
-4. Add these **GitHub repository Actions variables**, not privileged secrets, under **Settings → Secrets and variables → Actions → Variables**:
+4. The public connection identifiers are configured in `site/config.js` for branch-based hosting. To override them in a workflow build, set both of these **GitHub repository Actions variables**, not privileged secrets, under **Settings → Secrets and variables → Actions → Variables**:
    - `SUPABASE_URL`: `https://<project-ref>.supabase.co`
    - `SUPABASE_PUBLISHABLE_KEY`: the `sb_publishable_…` key or legacy `anon` key. **Never use a service-role or secret key.**
 5. In **Settings → Pages**, select **GitHub Actions** as the build source. This repository is public by the owner's choice. Source files and commit history are publicly readable; do not commit real inventory, requests, sales exports or database secrets. The hosted shell is publicly reachable even though database content is organization-only.
-6. Run **Check and publish Stock Room**. Every successful push to `main` publishes the website. Without the database variables, it displays the setup screen and does not load organization data or accept requests. After the database is configured, rerun the workflow to publish the sign-in-enabled site. The workflow returns the real Pages URL after deployment.
+6. Run **Check and publish Stock Room**. Every successful push to `main` publishes through the configured Pages source. Workflow builds use the paired Actions variables when set, otherwise the public connection from `site/config.js`. Without either connection, the website displays the setup screen. Configuring a connection enables the sign-in form; the Supabase schema, membership list and email settings must also be ready for real sign-in and shared data.
 7. Sign in as the barmaster, enter the first real counts, verify planning reserves and add actual upcoming openings. No real stock count or schedule has been invented. Test sign-in and an actual shared request from a second member before handing out the link.
 
 The shared production setup needs these external account steps; none of them is falsely represented by the local preview.
