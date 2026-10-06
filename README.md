@@ -22,7 +22,9 @@ python -m unittest discover -s tests -p '*_test.py'
 npm run build
 ```
 
-`dist/` is the only deployable directory. It contains no stock, product catalog, sales records, request records, preview fixtures or raw CSV. The product catalog and planning rates load from the private database after sign-in.
+`dist/` is the output for custom workflow deployments. It contains no stock, product catalog, sales records, request records, preview fixtures or raw CSV. The product catalog and planning rates load from the private database after sign-in.
+
+The currently enabled branch-based GitHub Pages hosting uses the repository's root `index.html`, which loads the app from `site/`. `.nojekyll` keeps these static assets unchanged. The workflow reads the configured Pages source and only runs its own deployment when the source is **GitHub Actions**, preventing competing publishers. If you later connect the database through Actions variables, select **GitHub Actions** in Pages settings as described below. Branch-based hosting can instead use the public identifiers in `site/config.js`; no privileged key belongs there.
 
 ## GitHub Pages + private database
 

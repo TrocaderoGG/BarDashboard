@@ -39,11 +39,19 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Use GitHub Actions as the Pages source
+      - name: Detect the configured Pages source
+        id: source
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api --method PUT "repos/${GITHUB_REPOSITORY}/pages" -f build_type=workflow --silent
+        run: |
+          mode=$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.build_type')
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          if [ "$mode" != "workflow" ]; then
+            echo "Pages publishes the branch's root index.html; custom deployment is skipped to avoid competing publishers."
+          fi
       - uses: actions/configure-pages@v5
+        if: steps.source.outputs.mode == 'workflow'
       - name: Deploy to GitHub Pages
+        if: steps.source.outputs.mode == 'workflow'
         id: deployment
         uses: actions/deploy-pages@v4
