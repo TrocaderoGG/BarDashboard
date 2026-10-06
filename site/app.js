@@ -154,7 +154,7 @@ document.addEventListener('submit',async event=>{
     else{const box=dialog.open?$('#dialog-error'):$('#request-error');if(box)box.textContent=error.message;else toast(error.message);}
   }finally{working=false;if(submit)submit.disabled=false;}
 });
-window.addEventListener('hashchange',()=>{render();$('#main')?.focus();});
+window.addEventListener('hashchange',()=>{render();$('#main')?.focus({preventScroll:true});window.scrollTo({top:0,behavior:'instant'});});
 try {if(api.signedIn())await refresh();else authPage();}catch(error){authPage(error.message);}
 
 // A bounded read tool shares the exact forecast shown on the stock page.
