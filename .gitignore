@@ -1,0 +1,7 @@
+dist/
+private/
+.env*
+!.env.example
+node_modules/
+test-results/
+__pycache__/
