@@ -38,6 +38,7 @@ test('request validation enforces whole quantities, dates, customers and no dupl
   assert.equal(validateRequest(valid,'2026-10-06').guests,50);
   for(const change of [{event_date:'2026-02-30'},{event_date:'2026-10-01'},{guests:0},{guests:1.5},{lines:[{product_id:'tap',quantity:-1}]},{lines:[{product_id:'tap',quantity:1.5}]},{lines:[{product_id:'tap',quantity:1},{product_id:'tap',quantity:2}]}])assert.throws(()=>validateRequest({...valid,...change},'2026-10-06'));
   assert.deepEqual(requestSummary(valid.lines,50),{servings:100,perGuest:2,flagged:false});
+  assert.deepEqual(requestSummary([{product_id:'',quantity:1}],50),{servings:0,perGuest:0,flagged:false});
 });
 test('history filtering and negative refund rows reconcile without multiplying line revenue by quantity',()=>{
   const rows=[{date:'2026-10-01',category:'QP',product:'Beer',quantity:3,gross_ore:10500},{date:'2026-10-02',category:'QP',product:'Beer',quantity:-1,gross_ore:-3500},{date:'2026-09-01',category:'QP',product:'Beer',quantity:4,gross_ore:14000}];

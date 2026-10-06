@@ -54,7 +54,7 @@ export function validateRequest(draft, now=today()) {
   return {...draft, guests:Number(draft.guests),event_name:draft.event_name.trim(),requester_name:draft.requester_name.trim(),lines:draft.lines.map(l=>({...l,quantity:Number(l.quantity)}))};
 }
 export function requestSummary(lines, guests) {
-  const servings=lines.reduce((s,l)=>s+Number(l.quantity||0)*(PRODUCT[l.product_id]?.requestFactor||1)*(l.product_id==='sparkling'?6:1),0);
+  const servings=lines.filter(l=>PRODUCT[l.product_id]).reduce((s,l)=>s+Math.max(0,Number(l.quantity)||0)*(PRODUCT[l.product_id].requestFactor||1)*(l.product_id==='sparkling'?6:1),0);
   return { servings, perGuest:guests>0?servings/guests:0, flagged:guests>0 && servings/guests>4 };
 }
 export function aggregateSales(rows, from, to, category='all') {
