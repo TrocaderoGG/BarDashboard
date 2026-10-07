@@ -41,7 +41,7 @@ let local;
 export async function loadData() {
   if(preview) {
     if(!local) local=await fetch('./__preview/state').then(r=>{if(!r.ok)throw Error('Local preview data is unavailable.');return r.json();});
-    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.tapSuppliesAvailable=true;local.internalSupplies??=[];local.inventoryAvailable=true;local.planningAvailable=true;local.catalogTagsAvailable=true;local.countSessions??=[];local.supplierOrders??=[];local.deliveriesAvailable=true;setCatalog(local.products);return structuredClone(local);
+    local.products=local.products.map((p,i)=>normalizeProduct({...p,_stockVersion:local.counts.filter(c=>c.product_id===p.id).length+local.movements.filter(m=>m.product_id===p.id).length,shelf:p.shelf??i*10}));local.countingAvailable=true;local.tapSuppliesAvailable=true;local.internalSupplies??=[];local.inventoryAvailable=true;local.planningAvailable=true;local.catalogTagsAvailable=true;local.countSessions??=[];local.supplierOrders??=[];local.deliveriesAvailable=true;setCatalog(local.products);return structuredClone(local);
   }
   const role=await rpc('my_role',{});
   if(!role) throw Error('This account is not on the organization’s member list. Ask the barmaster for access.');
@@ -58,13 +58,29 @@ export async function loadData() {
   if(role==='admin')try{supplierOrders=await rows('supplier_orders');}catch(error){if(['PGRST205','42P01'].includes(error.code))deliveriesAvailable=false;else throw error;}
   let catalogTagsAvailable=false;try{catalogTagsAvailable=await rpc('catalog_tags_ready',{})===true;}catch(error){if(!['PGRST202','42883'].includes(error.code))throw error;}
   const approvedDemand=await rpc('approved_demand',{});
-  const catalogue=products.map(p=>normalizeProduct({...p.definition,_version:p.version||1}));setCatalog(catalogue);
-  return {role,internalSupplies,tapSuppliesAvailable,catalogTagsAvailable,supplierOrders,deliveriesAvailable,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
+  const catalogue=products.map(p=>normalizeProduct({...p.definition,_version:p.version||1,_stockVersion:p.stock_version}));setCatalog(catalogue);
+  return {role,countingAvailable:products.every(p=>p.stock_version!==undefined),internalSupplies,tapSuppliesAvailable,catalogTagsAvailable,supplierOrders,deliveriesAvailable,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
 }
 export async function write(action,payload) {
   if(!preview) return rpc(action,{payload});
   // Deliberately ephemeral: this local review mode never claims to share or save data.
   const now=new Date().toISOString();
+  if(action==='save_product_count'){
+    const existing=local.countSessions.find(s=>s.id===payload.id);
+    if(existing?.status==='published')return true;
+    const p=local.products.find(p=>p.id===payload.product_id),l=payload.line;
+    if(!p||p.archived||p.unverifiedIdentity||p.id==='tap')throw Error('Choose an available named product');
+    const stockVersion=local.counts.filter(c=>c.product_id===p.id).length+local.movements.filter(m=>m.product_id===p.id).length;
+    if(stockVersion!==l.stockVersion)throw Error('Stock changed while you were counting. Start a fresh count.');
+    if(p._version!==l.productVersion)throw Error('Product changed. Start a fresh count.');
+    if(existing&&existing.revision!==payload.revision)throw Error('Draft changed. Reopen it.');
+    if(p.packAssumed&&l.full>0)throw Error('Confirm the pack size first');
+    const quantity=countQuantity(p,l);if(quantity===0&&!l.zeroConfirmed)throw Error('Use Out of stock to confirm a zero count');
+    const counted_at=now;local.counts.push({id:crypto.randomUUID(),batch_id:payload.id,product_id:p.id,quantity,counted_at,details:{...structuredClone(l),pack:p.pack,sizeMl:p.sizeMl,estimated:p.countMode==='bottle'&&l.opened.length>0}});
+    if(existing)Object.assign(existing,{status:'published',revision:existing.revision+1});
+    else local.countSessions.push({id:payload.id,status:'published',revision:1,lines:{[p.id]:structuredClone(l)}});
+    for(const draft of local.countSessions.filter(s=>s.status==='draft'&&s.id!==payload.id&&s.lines[p.id])){delete draft.lines[p.id];draft.revision++;if(!Object.keys(draft.lines).length)draft.status='discarded';}return true;
+  }
   if(action==='save_internal_supply'){
     local.internalSupplies??=[];const old=local.internalSupplies.find(s=>s.id===payload.id);
     if((old?.version||0)!==payload.version)throw Error('Supply count changed. Reopen before saving.');

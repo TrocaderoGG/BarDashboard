@@ -16,19 +16,23 @@ globalThis.document={createElement:()=>{host=new Dialog();return host;},body:{ap
 const api=await import('../site/api.js');
 const {openInventory}=await import('../site/inventory.js');
 const {openDeliveries}=await import('../site/deliveries.js');
-test('selected count resumes and publishes only confirmed products',async()=>{
+test('a product opens directly, saves immediately and never reappears as unfinished',async()=>{
  const before=await api.loadData();await openInventory({refresh:async()=>{},kegs:()=>{}});
- assert.ok(!host.innerHTML.includes('data-id="cola"'));
- await host.click('category',{category:'Soft drinks'});await host.click('select',{id:'cola'});await host.click('select',{id:'fanta'});
- await host.click('start');assert.match(host.innerHTML,/1 \/ 2/);
- await host.click('step',{key:'full',delta:'1'});
- await host.click('close');await openInventory({refresh:async()=>{},kegs:()=>{}});await host.click('start');
- assert.match(host.innerHTML,/20 cans/);
- await host.click('confirm');await host.click('next');
- assert.match(host.innerHTML,/1 products confirmed/);await host.click('publish');await host.click('close');
- const after=await api.loadData();assert.equal(after.counts.length,before.counts.length+1);
- assert.equal(after.counts.at(-1).product_id,'cola');assert.equal(after.counts.at(-1).quantity,20);
- assert.equal(after.counts.filter(c=>c.product_id==='fanta').length,before.counts.filter(c=>c.product_id==='fanta').length);
+ await host.click('select',{id:'cola'},'counting');assert.match(host.innerHTML,/Save count/);assert.ok(!host.innerHTML.includes('Publish count'));
+ await host.click('step',{key:'full',delta:'1'},'counting');
+ await host.click('close',{},'counting');await openInventory({refresh:async()=>{},kegs:()=>{}});
+ assert.match(host.innerHTML,/unfinished count/);assert.ok(!host.innerHTML.includes('data-amount="full"'));
+ const draft=(await api.loadData()).countSessions.find(s=>s.status==='draft');
+ await host.click('resume',{id:draft.id},'counting');assert.match(host.innerHTML,/20 cans/);
+ await host.click('save',{},'counting');assert.match(host.innerHTML,/saved · 20 cans/);
+ assert.ok(!host.innerHTML.includes('unfinished count'));assert.ok(!host.innerHTML.includes('data-amount="full"'));
+ const after=await api.loadData();assert.equal(after.counts.length,before.counts.length+1);assert.equal(after.counts.at(-1).quantity,20);
+ await host.click('select',{id:'cola'},'counting');assert.match(host.innerHTML,/value="0"/);assert.match(host.innerHTML,/Opening this counter does not change stock/);
+ await host.click('zero',{},'counting');await host.click('save',{},'counting');assert.equal((await api.loadData()).counts.at(-1).quantity,0);
+ await host.click('tag',{tag:'type:Soft drink'},'countpick');await host.click('guided',{},'counting');
+ await host.click('step',{key:'full',delta:'1'},'counting');await host.click('save',{},'counting');assert.match(host.innerHTML,/1 saved/);
+ const last=(await api.loadData()).counts.at(-1);await host.click('back',{},'counting');assert.match(host.innerHTML,/1 skipped/);
+ assert.equal((await api.loadData()).counts.at(-1).id,last.id);await host.click('close',{},'counting');
 });
 test('supplier order becomes a focused receiving list with discrepancy checks',async()=>{
  await openDeliveries({refresh:async()=>{},mode:'order'});

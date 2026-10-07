@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+test('immediate counts are atomic, retry-safe and protect against deliveries and other counts',async()=>{
+ const db=new PGlite(),user='11111111-1111-4111-8111-111111111111';
+ await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;create function auth.uid() returns uuid language sql stable as $$select (auth.jwt()->>'sub')::uuid$$;grant usage on schema auth to authenticated,anon;grant execute on all functions in schema auth to authenticated,anon;`);
+ for(const file of ['schema.sql','catalog.sql','inventory.sql','product_tags.sql','counting.sql','counting.sql'])await db.exec(await readFile('supabase/'+file,'utf8'));
+ await db.exec(`insert into auth.users values('${user}');insert into public.members values('admin@example.org','admin',true),('member@example.org','member',true)`);
+ const login=async email=>{await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:user,email})]);await db.exec('set role authenticated');};
+ const rpc=async(name,payload)=>(await db.query(`select public.${name}($1::jsonb) value`,[JSON.stringify(payload)])).rows[0].value;
+ const fresh=async(id='cola')=>({id:crypto.randomUUID(),revision:0,product_id:id,line:{flowVersion:3,full:1,loose:6,opened:[],stockVersion:Number((await db.query('select stock_version from public.products where id=$1',[id])).rows[0].stock_version),productVersion:(await db.query('select version from public.products where id=$1',[id])).rows[0].version,baseline:(await db.query('select max(counted_at) value from public.stock_counts where product_id=$1',[id])).rows[0].value}});
+ await login('member@example.org');await assert.rejects(rpc('save_product_count',await fresh()),/Barmaster/);
+ await login('admin@example.org');const first=await fresh();assert.equal(await rpc('save_product_count',first),true);assert.equal(await rpc('save_product_count',first),true);
+ assert.equal((await db.query("select quantity from public.stock_counts where product_id='cola'")).rows[0].quantity,'26');
+ assert.equal((await db.query('select status from public.count_sessions where id=$1',[first.id])).rows[0].status,'published');
+ const stale=await fresh();await rpc('record_movement',{id:crypto.randomUUID(),reference:'QP-TEST-delivery',occurred_at:new Date().toISOString(),kind:'delivery',lines:[{product_id:'cola',quantity:20}]});
+ await assert.rejects(rpc('save_product_count',stale),/Stock changed/);
+ const competing=await fresh();await rpc('save_product_count',await fresh());await assert.rejects(rpc('save_product_count',competing),/Stock changed/);
+ const zero=await fresh();zero.line.full=0;zero.line.loose=0;await assert.rejects(rpc('save_product_count',zero),/Out of stock/);
+ assert.equal((await db.query('select count(*) n from public.count_sessions where id=$1',[zero.id])).rows[0].n,0);
+ zero.line.zeroConfirmed=true;assert.equal(await rpc('save_product_count',zero),true);
+ const ambiguous=await fresh('guinness');await assert.rejects(rpc('save_product_count',ambiguous),/pack size/);
+ const edited=await fresh();edited.line.productVersion--;await assert.rejects(rpc('save_product_count',edited),/Product changed/);
+ // Existing unfinished amounts remain private and do not change stock on migration.
+ const oldDraft={id:crypto.randomUUID(),revision:0,lines:{fanta:{full:9,loose:0,opened:[]},sprite:{full:2,loose:0,opened:[]}}};
+ await rpc('save_count_session',oldDraft);
+ const draft=await fresh('fanta');draft.revision=await rpc('save_count_session',{id:draft.id,revision:0,lines:{fanta:draft.line}});
+ assert.equal(await rpc('save_product_count',draft),true);
+ const remaining=(await db.query('select lines,status from public.count_sessions where id=$1',[oldDraft.id])).rows[0];assert.deepEqual(Object.keys(remaining.lines),['sprite']);assert.equal(remaining.status,'draft');
+ assert.equal((await db.query("select count(*) n from public.stock_counts where product_id='sprite'")).rows[0].n,0);
+ await db.exec('reset role');const history=(await db.query('select count(*) n from public.stock_counts')).rows[0].n;await db.exec(await readFile('supabase/counting.sql','utf8'));assert.equal((await db.query('select count(*) n from public.stock_counts')).rows[0].n,history);
+ await db.exec('set role anon');await assert.rejects(rpc('save_product_count',first),/permission denied/);await db.close();
+});
