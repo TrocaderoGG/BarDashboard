@@ -46,7 +46,7 @@ with sync_playwright() as p:
     page.get_by_label('Product 2',exact=True).select_option('tap')
     page.get_by_role('button',name='Try request in preview',exact=True).click()
     expect(page.get_by_text('Choose each product only once.',exact=True)).to_be_visible()
-    page.get_by_label('Product 2',exact=True).select_option('cider')
+    page.get_by_label('Product 2',exact=True).select_option('briska-mango-can')
     page.get_by_label('Anything else?',exact=False).fill('<img src=x onerror="window.bad=true">')
     page.screenshot(path=str(OUT/'requests-desktop.png'))
     page.get_by_role('button',name='Try request in preview',exact=True).click()

@@ -1,0 +1,56 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+import {matchesTags,validateIdentity} from '../site/product-identity.js';
+import {normalizeProduct} from '../site/inventory-model.js';
+import {productLibrary} from '../site/library.js';
+import {popularNamedProducts} from '../site/sales-products.js';
+test('typed tags combine brand, type, flavour and alcohol-free without storage locations',()=>{
+ const p={id:'mango',brand:'Briska',productType:'Cider',name:'Briska Mango',flavour:'Mango',sizeMl:330,pack:24,unit:'cans',tags:['Seasonal'],alcoholFree:false};
+ assert.ok(matchesTags(p,['brand:Briska','type:Cider','flavour:Mango','tag:Seasonal']));assert.ok(!matchesTags(p,['tag:Alcohol-free']));
+ const library=productLibrary([p],{filters:['brand:Briska','type:Cider']});assert.match(library,/Briska Mango/);assert.ok(!library.includes('Storage'));
+ assert.equal(normalizeProduct({id:'beer33',name:'Beer · 33 cl'}).archived,true);
+ assert.equal(normalizeProduct({id:'custom',name:'Named gin',group:'Spirits'}).productType,'Spirit');
+ assert.throws(()=>validateIdentity({...p,brand:''}),/brand/);
+ assert.throws(()=>validateIdentity({...p,id:'copy'},[p]),/already exists/);
+ const rows=popularNamedProducts([{name:'QP - Cider',quantity:100},{name:'QP - Öl Guinness',quantity:20},{name:'QP - Redbull',quantity:3}]);
+ assert.deepEqual(rows.map(r=>r.label),['Guinness','Red Bull']);
+ assert.equal(popularNamedProducts([{name:'QP - NewBrand Summer lager',quantity:5}],[{brand:'NewBrand'}])[0].label,'NewBrand Summer lager');assert.match(rows[1].identityNote,/flavour not recorded/);
+});
+test('tag migration preserves legacy stock, enforces identities and rejects duplicate variants/codes',async()=>{
+ const db=new PGlite(),user='11111111-1111-4111-8111-111111111111';
+ await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;create function auth.uid() returns uuid language sql stable as $$select (auth.jwt()->>'sub')::uuid$$;grant usage on schema auth to authenticated,anon;grant execute on all functions in schema auth to authenticated,anon;`);
+ for(const file of ['schema.sql','catalog.sql','inventory.sql','deliveries.sql'])await db.exec(await readFile('supabase/'+file,'utf8'));
+ await db.exec(`insert into auth.users values('${user}');insert into public.members values('admin@example.org','admin',true),('member@example.org','member',true);insert into public.stock_counts(batch_id,product_id,quantity,counted_at,created_by) values(gen_random_uuid(),'cider',72,now(),'${user}');`);
+ // Emulate the earlier live schema with an unidentified cider aggregate.
+ await db.exec(`update public.products set definition=definition-'archived'-'unverifiedIdentity'-'tagSchemaVersion' where id='cider'`);
+ await db.exec(await readFile('supabase/product_tags.sql','utf8'));
+ const versionBefore=(await db.query('select id,version from public.products order by id')).rows;
+ await db.exec(await readFile('supabase/product_tags.sql','utf8'));assert.deepEqual((await db.query('select id,version from public.products order by id')).rows,versionBefore);
+ assert.equal((await db.query("select quantity from public.stock_counts where product_id='cider'")).rows[0].quantity,'72');
+ assert.equal((await db.query("select definition->>'archived' archived from public.products where id='cider'")).rows[0].archived,'true');
+ assert.equal((await db.query("select count(*) n from public.stock_counts where product_id='briska-mango-can'")).rows[0].n,0);
+ const login=async(email)=>{await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:user,email})]);await db.exec('set role authenticated');};
+ const rpc=async(name,payload)=>(await db.query(`select public.${name}($1::jsonb) value`,[JSON.stringify(payload)])).rows[0].value;
+ const p={id:'new-briska',brand:'Briska',productType:'Cider',name:'Briska Test flavour',flavour:'Test',group:'Cider',family:'Briska',unit:'cans',sizeMl:330,pack:24,countMode:'pack',shelf:1,kind:'seasonal',rate:0,minimum:0,reorder:false,archived:false,requestFactor:1,alcoholFree:false,packAssumed:false,tags:['Seasonal'],supplier:'Spendrups',supplierSku:'TEST-SKU',barcode:'TEST-BARCODE'};
+ await login('member@example.org');await assert.rejects(rpc('save_product',{definition:p,version:0}),/Barmaster/);
+ await login('admin@example.org');await assert.rejects(rpc('save_product_inventory',{definition:p,version:0}),/permission denied/);
+ await assert.rejects(rpc('save_product',{definition:{...p,brand:''},version:0}),/actual product brand/);
+ await assert.rejects(rpc('save_product',{definition:{...p,name:'Beer · 33 cl'},version:0}),/specific product name/);
+ await assert.rejects(rpc('save_product',{definition:{...p,tags:[2]},version:0}),/Tags/);
+ assert.equal(await rpc('save_product',{definition:p,version:0}),1);
+ await assert.rejects(rpc('save_product',{definition:{...p,id:'duplicate',supplierSku:'',barcode:''},version:0}),/already exists/);
+ await assert.rejects(rpc('save_product',{definition:{...p,id:'alias',name:'Alias for the same variant',supplierSku:'',barcode:''},version:0}),/already exists/);
+ await assert.rejects(rpc('save_product',{definition:{...p,id:'different',name:'Different flavour',flavour:'Different'},version:0}),/already exists/);
+ await assert.rejects(rpc('save_product',{definition:{...p,id:'cider'},version:1}),/legacy counts/);
+ // An ambiguous pack cannot create stock through a confirmed count or a supplier order.
+ const session={id:crypto.randomUUID(),revision:0,lines:{guinness:{full:1,loose:0,opened:[],confirmed:true,productVersion:1,baseline:null,counted_at:new Date().toISOString()}}};session.revision=await rpc('save_count_session',session);
+ await assert.rejects(rpc('finish_count_session',session),/Confirm the pack size/);
+ await assert.rejects(rpc('save_supplier_order',{id:crypto.randomUUID(),version:0,reference:'QP-guinness-test',supplier:'M&S',delivery_date:'2026-10-13',lines:[{product_id:'guinness',full:1,loose:0}]}),/Confirm the pack size/);
+ // Individual received units are safe even while packaging awaits confirmation.
+ await rpc('save_supplier_order',{id:crypto.randomUUID(),version:0,reference:'QP-guinness-units',supplier:'M&S',delivery_date:'2026-10-13',lines:[{product_id:'guinness',full:0,loose:12}]});
+ await db.exec('reset role');await db.exec(await readFile('supabase/deliveries.sql','utf8'));await login('admin@example.org');
+ await assert.rejects(rpc('save_supplier_order',{id:crypto.randomUUID(),version:0,reference:'QP-after-rerun',supplier:'M&S',delivery_date:'2026-10-13',lines:[{product_id:'guinness',full:1,loose:0}]}),/Confirm the pack size/);
+ await db.close();
+});

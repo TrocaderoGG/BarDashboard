@@ -87,4 +87,11 @@ begin
 end; $$;
 revoke all on function public.save_supplier_order(jsonb),public.receive_supplier_order(jsonb) from public,anon;
 grant execute on function public.save_supplier_order(jsonb),public.receive_supplier_order(jsonb) to authenticated;
+-- Install the identity guard as well when product_tags.sql was run first.
+do $$ begin
+ if to_regprocedure('public.guard_named_supplier_order()') is not null then
+  drop trigger if exists named_supplier_products on public.supplier_orders;
+  create trigger named_supplier_products before insert or update of lines on public.supplier_orders for each row execute function public.guard_named_supplier_order();
+ end if;
+end $$;
 commit;

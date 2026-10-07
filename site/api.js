@@ -1,6 +1,7 @@
 import {normalizeProduct,countQuantity} from './inventory-model.js';
 import {config} from './config.js';
 import {setCatalog} from './catalog.js';
+import {validateIdentity} from './product-identity.js';
 export const preview = ['localhost','127.0.0.1','[::1]'].includes(location.hostname);
 export const configured=Boolean(config.supabaseUrl&&config.supabaseKey);
 let session;
@@ -40,7 +41,7 @@ let local;
 export async function loadData() {
   if(preview) {
     if(!local) local=await fetch('./__preview/state').then(r=>{if(!r.ok)throw Error('Local preview data is unavailable.');return r.json();});
-    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.inventoryAvailable=true;local.planningAvailable=true;local.countSessions??=[];local.supplierOrders??=[];local.deliveriesAvailable=true;setCatalog(local.products);return structuredClone(local);
+    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.inventoryAvailable=true;local.planningAvailable=true;local.catalogTagsAvailable=true;local.countSessions??=[];local.supplierOrders??=[];local.deliveriesAvailable=true;setCatalog(local.products);return structuredClone(local);
   }
   const role=await rpc('my_role',{});
   if(!role) throw Error('This account is not on the organization’s member list. Ask the barmaster for access.');
@@ -53,15 +54,17 @@ export async function loadData() {
   let planningAvailable=false;try{planningAvailable=await rpc('planning_ready',{})===true;}catch(error){if(!['PGRST202','42883'].includes(error.code))throw error;}
   let supplierOrders=[],deliveriesAvailable=true;
   if(role==='admin')try{supplierOrders=await rows('supplier_orders');}catch(error){if(['PGRST205','42P01'].includes(error.code))deliveriesAvailable=false;else throw error;}
+  let catalogTagsAvailable=false;try{catalogTagsAvailable=await rpc('catalog_tags_ready',{})===true;}catch(error){if(!['PGRST202','42883'].includes(error.code))throw error;}
   const approvedDemand=await rpc('approved_demand',{});
   const catalogue=products.map(p=>normalizeProduct({...p.definition,_version:p.version||1}));setCatalog(catalogue);
-  return {role,supplierOrders,deliveriesAvailable,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
+  return {role,catalogTagsAvailable,supplierOrders,deliveriesAvailable,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
 }
 export async function write(action,payload) {
   if(!preview) return rpc(action,{payload});
   // Deliberately ephemeral: this local review mode never claims to share or save data.
   const now=new Date().toISOString();
   if(action==='save_product') {
+    validateIdentity(payload.definition,local.products);
     const i=local.products.findIndex(p=>p.id===payload.definition.id),version=(local.products[i]?._version||0)+1;
     const product={...payload.definition,_version:version};if(i<0)local.products.push(product);else local.products[i]=product;
     delete local.settings[product.id];return version;

@@ -20,7 +20,7 @@ test('PostgreSQL authorization and stock/request transactions',async t=>{
     await login(outsider,'outsider@example.org');assert.equal((await db.query('select * from public.products')).rows.length,0);await assert.rejects(rpc('submit_request',request),/Membership required/);
   });
   await t.test('members submit durable idempotent requests without stock privileges',async()=>{
-    await login(member,'member@example.org');assert.equal((await db.query('select * from public.products')).rows.length,17);
+    await login(member,'member@example.org');assert.equal((await db.query('select * from public.products')).rows.length,19);
     assert.equal(await rpc('submit_request',request),requestId);assert.equal(await rpc('submit_request',request),requestId);
     assert.equal((await db.query('select * from public.order_requests')).rows.length,1);
     await assert.rejects(rpc('submit_request',{...request,guests:45}),/different details/);

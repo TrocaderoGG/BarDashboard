@@ -1,3 +1,4 @@
+import {identityFor} from './product-identity.js';
 export const templates={
  soda:{family:'Soda',group:'Soft drinks',unit:'cans',sizeMl:330,pack:20,kind:'staple',countMode:'pack'},
  redbull:{family:'Red Bull',group:'Soft drinks',unit:'cans',sizeMl:250,pack:24,kind:'staple',countMode:'pack'},
@@ -8,7 +9,7 @@ export const templates={
  spirit:{family:'Gin',group:'Spirits',unit:'bottles',sizeMl:700,pack:1,kind:'occasional',countMode:'bottle'},
  other:{family:'',group:'Other',unit:'pieces',sizeMl:1,pack:1,kind:'occasional',countMode:'pack'}
 };
-export function normalizeProduct(p){return {family:p.id==='beer50'?'Mariestad':p.id==='tap'?'Norrlands':p.id==='smirnoff'?'Smirnoff Ice':p.id.startsWith('redbull')?'Red Bull':p.name,flavour:'',location:'Storage',shelf:0,archived:false,kind:['tap','beer50','cola','colazero','fanta','fantazero','sprite','spritezero','redbull','redbullzero'].includes(p.id)?'staple':'occasional',reorder:true,countMode:p.id==='tap'?'keg':'pack',sizeMl:p.id==='tap'?30000:p.id==='beer50'||p.id==='pet'?500:p.id==='smirnoff'?275:p.id.startsWith('redbull')?250:p.id==='guinness'?440:p.id==='sparkling'?750:330,_version:1,...p};}
+export function normalizeProduct(p){p=identityFor(p);return {family:p.id==='beer50'?'Mariestad':p.id==='tap'?'Norrlands':p.id==='smirnoff'?'Smirnoff Ice':p.id.startsWith('redbull')?'Red Bull':p.name,flavour:'',location:'Storage',shelf:0,archived:false,kind:['tap','beer50','cola','colazero','fanta','fantazero','sprite','spritezero','redbull','redbullzero'].includes(p.id)?'staple':'occasional',reorder:true,countMode:p.id==='tap'?'keg':'pack',sizeMl:p.id==='tap'?30000:p.id==='beer50'||p.id==='pet'?500:p.id==='smirnoff'?275:p.id.startsWith('redbull')?250:p.id==='guinness'?440:p.id==='sparkling'?750:330,_version:1,...p};}
 export function countQuantity(product,line){
  if(!Number.isInteger(line.full)||line.full<0)throw Error('Use whole packs or full bottles.');
  if(product.countMode==='bottle'){
