@@ -46,6 +46,7 @@ begin
  if length(trim(coalesce(d->>'brand',''))) not between 1 and 100 then raise exception 'Enter the actual product brand';end if;
  type_label=d->>'productType';
  if type_label is null or type_label not in ('Beer','Cider','RTD','Soft drink','Energy drink','Spirit','Wine','Other') then raise exception 'Choose a valid product type';end if;
+ if type_label<>'Other' and d->>'unit'='pieces' then raise exception 'Choose cans or bottles for beverages';end if;
  if d->>'name' in ('Beer · 33 cl','Cider · 33 cl','Alcohol-free beer / cider','Soft drinks · 50 cl PET','Sparkling wine') then raise exception 'Use a specific product name instead of a generic sales label';end if;
  if jsonb_typeof(d->'alcoholFree') is distinct from 'boolean' or jsonb_typeof(d->'packAssumed') is distinct from 'boolean' then raise exception 'Confirm the product attributes';end if;
  if jsonb_typeof(d->'tags') is distinct from 'array' or jsonb_array_length(d->'tags')>12 then raise exception 'Use up to 12 additional tags';end if;

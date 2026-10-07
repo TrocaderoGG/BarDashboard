@@ -40,11 +40,11 @@ export async function openInventory({refresh,kegs,mode='count'}){
    <div class="inventory-fields">
     ${field('Brand','brand','text','required maxlength="100" list="product-brands" placeholder="e.g. Briska"')}
     <datalist id="product-brands">${[...new Set(data.products.map(p=>p.brand).filter(Boolean))].sort().map(b=>`<option value="${esc(b)}">`).join('')}</datalist>
-    <label>Product type<select name="productType" id="product-type">${options(PRODUCT_TYPES,d.productType)}</select></label>
-    ${field('Product name','name','text','required maxlength="120" placeholder="e.g. Briska Mango"')}
+    <label>Product type<select name="productType" id="product-type" aria-label="Product type">${options(PRODUCT_TYPES,d.productType)}</select></label>
+    ${field('Product name (optional)','name','text','maxlength="120" placeholder="Defaults to brand + flavour"')}
     ${field('Flavour / variant','flavour','text','maxlength="100" placeholder="e.g. Mango, Export, Zero"')}
     <label><input type="checkbox" name="alcoholFree" ${d.alcoholFree?'checked':''}> Alcohol-free</label>
-    <label>Container<select name="unit" ${edit.version?'disabled':''}>${options(d.id==='tap'?['glasses']:['cans','bottles','pieces'],d.unit)}</select></label>
+    <label>Container<select name="unit" aria-label="Container" ${edit.version?'disabled':''}>${options(d.id==='tap'?['glasses']:['cans','bottles','pieces'],d.unit)}</select></label>
     ${field('Container size · ml','sizeMl','number',`required min="1" max="50000" ${edit.version?'readonly':''}`)}
     <label>Units / pack<input name="pack" type="number" value="${d.packAssumed?'':esc(d.pack)}" required min="1" max="1000" step="1" ${d.countMode==='keg'||d.countMode==='bottle'?'readonly':''} placeholder="Confirm the actual pack size"></label>
     <details class="disclosure"><summary>Tags & planning</summary><div class="inventory-fields">
@@ -67,7 +67,7 @@ export async function openInventory({refresh,kegs,mode='count'}){
   </form>`;
  }
  function draw(){host.innerHTML=`<header class="inventory-head"><div><p class="eyebrow">${api.preview?'LOCAL PREVIEW':'Barmaster workspace'}</p><h1>${view==='editor'?'Product':view==='count'?'Count stock':view==='review'?'Finish count':'Your stock'}</h1></div>${btn('Close','close')}</header>${!data.inventoryAvailable?'<div class="notice info">Run the inventory database upgrade before editing products or counting stock.</div>':`<p id="draft-status" role="status">${esc(saveState)}</p>${message?`<p class="notice error" role="alert">${esc(message)}</p>`:''}<div class="inventory-body">${view==='catalogue'?catalogue():view==='count'?count():view==='review'?review():editor()}</div>`}`;}
- function newProduct(template=templates.other){return {id:crypto.randomUUID(),name:'',brand:'',productType:'Other',tags:[],alcoholFree:false,family:'',flavour:'',supplier:'',location:'Storage',shelf:Math.max(0,...data.products.map(p=>Number(p.shelf)))+10,archived:false,rate:0,minimum:0,capacity:null,requestFactor:1,reorder:false,...template};}
+ function newProduct(template=templates.other){return {id:crypto.randomUUID(),name:'',brand:'',productType:'Other',tags:[],alcoholFree:false,family:'',flavour:'',supplier:'',location:'Storage',shelf:Math.max(0,...data.products.map(p=>Number(p.shelf)))+10,archived:false,rate:0,minimum:0,capacity:null,requestFactor:1,reorder:false,...template,unit:'cans',sizeMl:330,pack:null};}
  async function reload(){data=await api.loadData();}
  async function productSave(d){const {_version,...definition}=d;await api.write('save_product',{definition,version:edit.version});await reload();if(session?.lines[d.id]){session.lines[d.id].confirmed=false;dirty=true;await persist();}view='catalogue';category='';filters=[];query=d.name;manage=false;}
  async function close(){await persist();await chain;host.close();host.remove();await refresh();}
@@ -126,7 +126,7 @@ export async function openInventory({refresh,kegs,mode='count'}){
  });
  host.addEventListener('submit',async e=>{
   e.preventDefault();e.stopPropagation();if(busy)return;busy=true;const submit=e.target.querySelector('[type=submit]');submit.disabled=true;
-  try{const values=Object.fromEntries(new FormData(e.target)),d={...edit.definition,...values};for(const key of ['pack','sizeMl','shelf','rate','minimum'])d[key]=Number(d[key]);d.capacity=values.capacity===''?null:Number(values.capacity);d.reorder=Boolean(values.reorder);d.brand=d.brand.trim();d.name=d.name.trim();d.flavour=d.flavour.trim();d.tags=[...new Set((values.tags||'').split(',').map(v=>v.trim()).filter(Boolean))];d.alcoholFree=['Soft drink','Energy drink'].includes(d.productType)||Boolean(values.alcoholFree);d.group=d.productType;d.family=d.brand;d.location='Storage';d.packAssumed=false;validateIdentity(d,data.products);if(d.countMode==='bottle'){d.pack=1;d.unit='bottles';}if(!d.name.trim())throw Error('Enter a product name.');await productSave(d);message='';draw();}
+  try{const values=Object.fromEntries(new FormData(e.target)),d={...edit.definition,...values};for(const key of ['pack','sizeMl','shelf','rate','minimum'])d[key]=Number(d[key]);d.capacity=values.capacity===''?null:Number(values.capacity);d.reorder=Boolean(values.reorder);d.brand=d.brand.trim();d.flavour=d.flavour.trim();d.name=d.name.trim()||(d.flavour?`${d.brand} ${d.flavour}`:'');d.tags=[...new Set((values.tags||'').split(',').map(v=>v.trim()).filter(Boolean))];d.alcoholFree=['Soft drink','Energy drink'].includes(d.productType)||Boolean(values.alcoholFree);d.group=d.productType;d.family=d.brand;d.location='Storage';d.packAssumed=false;validateIdentity(d,data.products);if(d.countMode==='bottle'){d.pack=1;d.unit='bottles';}if(!d.name.trim())throw Error('Enter a product name.');await productSave(d);message='';draw();}
   catch(err){message=err.message;const alert=document.createElement('p');alert.className='notice error';alert.setAttribute('role','alert');alert.textContent=message;e.target.prepend(alert);submit.disabled=false;}finally{busy=false;}
  });
  if(mode==='add'){edit={definition:newProduct(),version:0};view='editor';}
