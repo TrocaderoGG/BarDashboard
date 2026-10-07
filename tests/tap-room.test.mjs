@@ -6,6 +6,7 @@ import {kegSummary,litresToServings} from '../site/keg-model.js';
 test('physical keg estimates translate to conservative servings',()=>{
  assert.deepEqual(kegSummary([{state:'warm',glasses:50},{state:'cold',glasses:50},{state:'on_tap',glasses:25},{state:'empty',glasses:0}]),{full:2,opened:1,servings:125});
  assert.equal(litresToServings(15),25);assert.equal(litresToServings(30),50);assert.equal(litresToServings(0),0);
+ assert.deepEqual(kegSummary([{state:'on_tap',glasses:50}]),{full:0,opened:1,servings:50});
  for(const invalid of ['',-1,31,'no'])assert.throws(()=>litresToServings(invalid));
 });
 test('tap supplies stay private, versioned and separate from drink stock',async()=>{

@@ -7,5 +7,5 @@ export function litresToServings(litres){
 }
 export function kegSummary(kegs){
  const occupied=kegs.filter(k=>k.state!=='empty');
- return {full:occupied.filter(k=>Number(k.glasses)===KEG_SERVINGS).length,opened:occupied.filter(k=>Number(k.glasses)<KEG_SERVINGS).length,servings:occupied.reduce((s,k)=>s+Number(k.glasses),0)};
+ return {full:occupied.filter(k=>k.state!=='on_tap'&&Number(k.glasses)===KEG_SERVINGS).length,opened:occupied.filter(k=>k.state==='on_tap'||Number(k.glasses)<KEG_SERVINGS).length,servings:occupied.reduce((s,k)=>s+Number(k.glasses),0)};
 }
