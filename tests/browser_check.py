@@ -15,9 +15,9 @@ with sync_playwright() as p:
     page.goto('http://127.0.0.1:4173/',wait_until='networkidle')
     expect(page.get_by_role('heading',name='Ready for the next round.')).to_be_visible()
     expect(page.get_by_text('LOCAL PREVIEW',exact=True)).to_be_visible()
-    assert page.locator('.stock-table tbody tr').count()==17
+    assert page.locator('.stock-layout .stock-table tbody tr').count()==17
     page.get_by_role('button',name='To order',exact=True).click()
-    assert 0<page.locator('.stock-table tbody tr').count()<17
+    assert 0<page.locator('.stock-layout .stock-table tbody tr').count()<17
     page.get_by_role('button',name='All products',exact=True).click()
     page.screenshot(path=str(OUT/'stock-desktop.png'))
 

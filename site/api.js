@@ -40,7 +40,7 @@ let local;
 export async function loadData() {
   if(preview) {
     if(!local) local=await fetch('./__preview/state').then(r=>{if(!r.ok)throw Error('Local preview data is unavailable.');return r.json();});
-    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.inventoryAvailable=true;local.countSessions??=[];setCatalog(local.products);return structuredClone(local);
+    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.inventoryAvailable=true;local.planningAvailable=true;local.countSessions??=[];setCatalog(local.products);return structuredClone(local);
   }
   const role=await rpc('my_role',{});
   if(!role) throw Error('This account is not on the organization’s member list. Ask the barmaster for access.');
@@ -50,9 +50,10 @@ export async function loadData() {
   catch(error) {if(['PGRST205','42P01'].includes(error.code))purchasesAvailable=false;else throw error;}
   let countSessions=[],inventoryAvailable=products.every(p=>p.version!==undefined);
   if(inventoryAvailable&&role==='admin'){try{countSessions=await rows('count_sessions');}catch(error){if(['PGRST205','42P01'].includes(error.code))inventoryAvailable=false;else throw error;}}
+  let planningAvailable=false;try{planningAvailable=await rpc('planning_ready',{})===true;}catch(error){if(!['PGRST202','42883'].includes(error.code))throw error;}
   const approvedDemand=await rpc('approved_demand',{});
   const catalogue=products.map(p=>normalizeProduct({...p.definition,_version:p.version||1}));setCatalog(catalogue);
-  return {role,products:catalogue,countSessions,inventoryAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
+  return {role,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
 }
 export async function write(action,payload) {
   if(!preview) return rpc(action,{payload});

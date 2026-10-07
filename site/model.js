@@ -9,6 +9,8 @@ export function localDate(value) {
 }
 export function eventDemand(event, product, requests=[]) {
   const reserved = requests.filter(r=>r.status==='approved' && r.event_id===event.id).reduce((sum,r)=>sum + r.lines.filter(l=>l.product_id===product.id).reduce((s,l)=>s+l.quantity*(product.requestFactor||1),0),0);
+  if(event.kind==='pub')return product.rate*Number(event.multiplier)+reserved;
+  if(event.kind==='event')return reserved;
   // An approved event request replaces the normal estimate only where it is larger.
   return Math.max(product.rate * Number(event.multiplier), reserved);
 }

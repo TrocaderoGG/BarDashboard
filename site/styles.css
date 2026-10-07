@@ -21,3 +21,37 @@ dialog{border:1px solid var(--line);border-radius:12px;padding:0;width:min(740px
 .inventory-dialog::backdrop{background:#10282ac9}.inventory-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.inventory-head h1{font-size:28px;margin:0 0 20px}.inventory-dialog .btn{min-height:48px}.inventory-dialog nav{padding-bottom:10px;border-bottom:1px solid #dce4df}.inventory-dialog label{display:grid;gap:6px;font-size:14px}.inventory-dialog input,.inventory-dialog select{min-height:48px;width:100%;border:1px solid #bdcdc6;border-radius:8px;padding:10px;font:inherit;background:white}.inventory-dialog input[type=checkbox]{width:24px;min-height:24px}.inventory-toolbar,.inventory-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}.inventory-list{margin-top:20px}.inventory-product{background:white;border:1px solid #dce4df;border-radius:12px;padding:16px;margin:12px 0;display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}.inventory-product small{display:block;margin-top:6px;color:#526966}.inventory-body{padding-bottom:110px}.count-step{background:white;padding:18px;border-radius:12px;margin:18px 0}.count-step>span{display:block;margin-bottom:12px;font-weight:600}.count-step>div{display:grid;grid-template-columns:60px 1fr 60px;gap:10px}.count-step input{text-align:center;font-size:28px;font-weight:bold}.count-step button{font-size:28px;min-height:64px;justify-content:center}.count-total{font-size:28px;font-weight:bold}.count-dock{position:sticky;bottom:-24px;background:#173337;padding:14px;display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px;margin:24px -12px -24px}.count-dock .btn{background:white;justify-content:center}.count-dock .btn:last-child{background:#d0eb82}.opened-bottle{border:1px solid #bdcdc6;border-radius:12px;padding:12px;margin:12px 0}.fraction-row{display:flex;gap:6px;margin-bottom:14px}.fraction-row .btn{flex:1;justify-content:center;padding:8px}.fraction-row [aria-pressed=true]{background:#d0eb82;border-color:#426444}.inventory-dialog #draft-status{min-height:24px;font-size:13px;color:#526966}.inventory-dialog .buttons{flex-wrap:wrap}.inventory-dialog button:focus-visible{outline:3px solid #6f8d24;outline-offset:2px}
 @media(max-width:600px){.inventory-dialog{width:100vw;padding:16px}.inventory-toolbar,.inventory-fields{grid-template-columns:1fr}.inventory-head h1{font-size:24px}.count-dock{bottom:-16px;padding-bottom:max(14px,env(safe-area-inset-bottom));}.inventory-product .buttons{width:100%}.inventory-dialog h2{font-size:26px}}
 .inventory-dialog .count-dock{position:fixed;right:0;bottom:0;width:min(800px,100vw);box-sizing:border-box;margin:0;z-index:10;padding-bottom:max(14px,env(safe-area-inset-bottom))}
+/* Keep intrinsic form and grid widths inside narrow phone viewports. */
+.workspace,.main,.panel,.panel-body,.inventory-body,.inventory-product>div,.field,.field-grid>*{min-width:0}
+input,select,textarea{max-width:100%;min-width:0}
+.inventory-product,.notice,.product-name,.request-card,.disclosure{overflow-wrap:anywhere}
+#delivery-choice{display:block;width:100%;margin:8px 0 14px}
+@media(max-width:700px){
+ .topbar{flex-wrap:wrap;gap:6px;padding-block:9px}.breadcrumb{gap:7px}.private-label{flex-wrap:wrap}
+ .sidebar nav{gap:4px}.nav-item{min-width:0;font-size:.75rem}.nav-item .icon{width:17px}
+ .page-heading .buttons{width:100%;display:grid;grid-template-columns:1fr 1fr}.page-heading .buttons .btn{min-height:46px}
+ .panel-head{flex-wrap:wrap}.panel-head .tag{white-space:normal}
+ .field-grid{grid-template-columns:minmax(0,1fr)}.field.full{grid-column:auto}
+ input,select,textarea,.field input,.field select,.field textarea{font-size:16px}
+ .history-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.history-controls .field{min-width:0}.history-controls .field:nth-child(3),.history-controls .btn{grid-column:1/-1}
+ .inventory-dialog{border-radius:0;border:0;max-height:100dvh;inset:0;margin:0;padding:16px;width:100%;height:100dvh}
+ .inventory-dialog nav .btn{flex:1 1 100px;padding-inline:10px}.inventory-head h1{margin-bottom:10px}
+ .inventory-dialog .count-dock{width:100%;padding:12px max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom));gap:6px;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.8fr)}
+ .count-dock .btn{padding:12px 6px;white-space:normal;font-size:.85rem;min-width:0}
+ .count-step>div{grid-template-columns:52px minmax(0,1fr) 52px}.count-step{padding:14px}.count-step input{padding-inline:4px}
+ .fraction-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}.fraction-row .btn{padding:8px 2px;font-size:.8rem}
+ .inventory-product .buttons .btn{flex:1;min-width:44px;padding-inline:9px}
+ .stock-layout .stock-table,.purchase-items,.reservation-table{display:block;width:100%;min-width:0!important}
+ .stock-layout .stock-table thead,.purchase-items thead,.reservation-table thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+ .stock-layout .stock-table tbody,.purchase-items tbody,.reservation-table tbody{display:block;width:100%}
+ .stock-layout .stock-table tr,.purchase-items tr,.reservation-table tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);border-bottom:1px solid var(--line);gap:8px 16px;padding:16px}
+ .stock-layout .stock-table td,.purchase-items td,.reservation-table td{display:block;border:0;padding:0;min-width:0;overflow-wrap:anywhere}
+ .stock-layout .stock-table td:first-child,.purchase-items td:first-child,.reservation-table td:first-child{grid-column:1/-1;font-weight:600}
+ .stock-layout .stock-table td:before,.purchase-items td:before,.reservation-table td:before{display:block;font-size:.7rem;font-weight:400;color:var(--muted);margin-bottom:5px}
+ .stock-layout .stock-table td:nth-child(2):before,.reservation-table td:nth-child(2):before{content:'On hand'}
+ .stock-layout .stock-table td:nth-child(3):before{content:'Expected to last'}
+ .purchase-items td:nth-child(2):before{content:'Quantity'}.purchase-items td:nth-child(3):before{content:'Pack size'}.purchase-items td:nth-child(4):before{content:'Net · SEK'}
+ .reservation-table td:nth-child(3):before{content:'Pub needs'}.reservation-table td:nth-child(4):before{content:'Event reservations'}.reservation-table td:nth-child(5):before{content:'Reserve'}
+ .purchase-scroll{overflow:visible}.monthly-table th,.monthly-table td{padding:12px 9px}.monthly-table th:first-child{width:43%}.monthly-table th:nth-child(2){width:22%}
+ .disclosure>div{padding-inline:12px}.inventory-body{padding-bottom:130px}
+}
