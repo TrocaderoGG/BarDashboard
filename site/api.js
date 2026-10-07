@@ -41,11 +41,13 @@ let local;
 export async function loadData() {
   if(preview) {
     if(!local) local=await fetch('./__preview/state').then(r=>{if(!r.ok)throw Error('Local preview data is unavailable.');return r.json();});
-    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.inventoryAvailable=true;local.planningAvailable=true;local.catalogTagsAvailable=true;local.countSessions??=[];local.supplierOrders??=[];local.deliveriesAvailable=true;setCatalog(local.products);return structuredClone(local);
+    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.tapSuppliesAvailable=true;local.internalSupplies??=[];local.inventoryAvailable=true;local.planningAvailable=true;local.catalogTagsAvailable=true;local.countSessions??=[];local.supplierOrders??=[];local.deliveriesAvailable=true;setCatalog(local.products);return structuredClone(local);
   }
   const role=await rpc('my_role',{});
   if(!role) throw Error('This account is not on the organization’s member list. Ask the barmaster for access.');
   const [products,counts,movements,events,requests,kegs,settings,sales,imports]=await Promise.all(['products','stock_counts','stock_movements','events','order_requests','keg_slots','product_settings','sales_daily','sales_imports'].map(rows));
+  let internalSupplies=[],tapSuppliesAvailable=kegs.every(k=>k.version!==undefined);
+  if(role==='admin')try{internalSupplies=await rows('internal_supplies');}catch(error){if(['PGRST205','42P01'].includes(error.code))tapSuppliesAvailable=false;else throw error;}
   let purchases=[],purchasesAvailable=true;
   try {purchases=await rows('purchase_orders');}
   catch(error) {if(['PGRST205','42P01'].includes(error.code))purchasesAvailable=false;else throw error;}
@@ -57,12 +59,22 @@ export async function loadData() {
   let catalogTagsAvailable=false;try{catalogTagsAvailable=await rpc('catalog_tags_ready',{})===true;}catch(error){if(!['PGRST202','42883'].includes(error.code))throw error;}
   const approvedDemand=await rpc('approved_demand',{});
   const catalogue=products.map(p=>normalizeProduct({...p.definition,_version:p.version||1}));setCatalog(catalogue);
-  return {role,catalogTagsAvailable,supplierOrders,deliveriesAvailable,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
+  return {role,internalSupplies,tapSuppliesAvailable,catalogTagsAvailable,supplierOrders,deliveriesAvailable,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
 }
 export async function write(action,payload) {
   if(!preview) return rpc(action,{payload});
   // Deliberately ephemeral: this local review mode never claims to share or save data.
   const now=new Date().toISOString();
+  if(action==='save_internal_supply'){
+    local.internalSupplies??=[];const old=local.internalSupplies.find(s=>s.id===payload.id);
+    if((old?.version||0)!==payload.version)throw Error('Supply count changed. Reopen before saving.');
+    const value={...structuredClone(payload),version:payload.version+1,counted_at:now};
+    if(old)Object.assign(old,value);else local.internalSupplies.push(value);return value.version;
+  }
+  if(action==='save_kegs_checked'){
+    if(payload.kegs.some(k=>k.version!==(local.kegs.find(s=>s.slot===k.slot)?.version||1)))throw Error('Kegs changed. Reopen before saving.');
+    payload={...payload,kegs:payload.kegs.map(k=>({...k,version:k.version+1}))};action='save_kegs';
+  }
   if(action==='save_product') {
     validateIdentity(payload.definition,local.products);
     const i=local.products.findIndex(p=>p.id===payload.definition.id),version=(local.products[i]?._version||0)+1;

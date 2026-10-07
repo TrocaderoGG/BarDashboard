@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node scripts/serve.mjs",
     "build": "node scripts/build.mjs",
-    "test": "node tests/model.test.mjs && node tests/database.test.mjs && node tests/inventory.test.mjs && node tests/planning.test.mjs && node tests/deliveries.test.mjs && node tests/focused-flows.test.mjs && node tests/product-tags.test.mjs"
+    "test": "node tests/model.test.mjs && node tests/database.test.mjs && node tests/inventory.test.mjs && node tests/planning.test.mjs && node tests/deliveries.test.mjs && node tests/focused-flows.test.mjs && node tests/product-tags.test.mjs && node tests/tap-room.test.mjs"
   },
   "engines": {
     "node": ">=22"
