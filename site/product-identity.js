@@ -15,6 +15,16 @@ export const KNOWN_IDENTITIES={
  redbullzero:{brand:'Red Bull',productType:'Energy drink',flavour:'Sugarfree',alcoholFree:true}
 };
 export const GENERIC_NAMES=new Set(['Beer · 33 cl','Cider · 33 cl','Alcohol-free beer / cider','Soft drinks · 50 cl PET','Sparkling wine']);
+// A short stored name must not hide the structured identity of its variant.
+export function productLabel(p){
+ const name=(p.name||'').trim(),brand=(p.brand||'').trim(),flavour=(p.flavour||'').trim();
+ const words=value=>value.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+ const contains=(text,part)=>!part||(' '+words(text)+' ').includes(' '+words(part)+' ');
+ let label=name||brand||'Unnamed product';
+ if(brand&&!contains(label,brand))label=brand+' '+label;
+ if(flavour&&!contains(label,flavour))label+=' · '+flavour;
+ return label;
+}
 export function identityFor(p){
  const known=KNOWN_IDENTITIES[p.id]||{},generic=GENERIC_NAMES.has(p.name)&&!p.brand;
  return {...known,...p,brand:p.brand||known.brand||'',productType:p.productType||known.productType||({Spirits:'Spirit',Wine:'Wine','Soft drinks':'Soft drink'}[p.group])||'Other',flavour:p.flavour||known.flavour||'',tags:p.tags||[],alcoholFree:p.alcoholFree??known.alcoholFree??false,archived:Boolean(p.archived)||generic,unverifiedIdentity:generic,packAssumed:p.packAssumed??Boolean(!p.brand&&known.packAssumed)};

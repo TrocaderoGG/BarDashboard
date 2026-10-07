@@ -2,12 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
-import {matchesTags,validateIdentity} from '../site/product-identity.js';
+import {matchesTags,validateIdentity,productLabel} from '../site/product-identity.js';
 import {normalizeProduct} from '../site/inventory-model.js';
 import {productLibrary} from '../site/library.js';
 import {popularNamedProducts} from '../site/sales-products.js';
 test('typed tags combine brand, type, flavour and alcohol-free without storage locations',()=>{
  const p={id:'mango',brand:'Briska',productType:'Cider',name:'Briska Mango',flavour:'Mango',sizeMl:330,pack:24,unit:'cans',tags:['Seasonal'],alcoholFree:false};
+ assert.equal(productLabel({brand:'Example Brand',name:'Hard seltzer',flavour:'Lemon'}),'Example Brand Hard seltzer · Lemon');
+ assert.equal(productLabel({brand:'Example Brand',name:'Hard seltzer',flavour:'Mango'}),'Example Brand Hard seltzer · Mango');
+ assert.equal(productLabel({brand:'Briska',name:'Briska Mango',flavour:'Mango'}),'Briska Mango');
+ assert.equal(productLabel({brand:'Briska',name:'Briska Mangosteen',flavour:'Mango'}),'Briska Mangosteen · Mango');
  assert.ok(matchesTags(p,['brand:Briska','type:Cider','flavour:Mango','tag:Seasonal']));assert.ok(!matchesTags(p,['tag:Alcohol-free']));
  const library=productLibrary([p],{filters:['brand:Briska','type:Cider']});assert.match(library,/Briska Mango/);assert.ok(!library.includes('Storage'));
  assert.equal(normalizeProduct({id:'beer33',name:'Beer · 33 cl'}).archived,true);
