@@ -19,6 +19,7 @@ with sync_playwright() as p:
  expect(page.locator('#request-impact')).to_contain_text('3 packs on 20 Oct')
  page.get_by_role('button',name='Save decision').click()
  page.get_by_role('link',name='Stock overview').click()
+ page.get_by_text('Pub reservations & delivery planning',exact=True).click()
  section=page.locator('section').filter(has=page.get_by_role('heading',name='Pub & event stock plan'))
  expect(section).to_contain_text('50 cans above comfortable capacity')
  section.get_by_text('What to protect for pubs and events',exact=True).click()

@@ -40,7 +40,7 @@ let local;
 export async function loadData() {
   if(preview) {
     if(!local) local=await fetch('./__preview/state').then(r=>{if(!r.ok)throw Error('Local preview data is unavailable.');return r.json();});
-    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.inventoryAvailable=true;local.planningAvailable=true;local.countSessions??=[];setCatalog(local.products);return structuredClone(local);
+    local.products=local.products.map((p,i)=>normalizeProduct({...p,shelf:p.shelf??i*10}));local.inventoryAvailable=true;local.planningAvailable=true;local.countSessions??=[];local.supplierOrders??=[];local.deliveriesAvailable=true;setCatalog(local.products);return structuredClone(local);
   }
   const role=await rpc('my_role',{});
   if(!role) throw Error('This account is not on the organization’s member list. Ask the barmaster for access.');
@@ -51,9 +51,11 @@ export async function loadData() {
   let countSessions=[],inventoryAvailable=products.every(p=>p.version!==undefined);
   if(inventoryAvailable&&role==='admin'){try{countSessions=await rows('count_sessions');}catch(error){if(['PGRST205','42P01'].includes(error.code))inventoryAvailable=false;else throw error;}}
   let planningAvailable=false;try{planningAvailable=await rpc('planning_ready',{})===true;}catch(error){if(!['PGRST202','42883'].includes(error.code))throw error;}
+  let supplierOrders=[],deliveriesAvailable=true;
+  if(role==='admin')try{supplierOrders=await rows('supplier_orders');}catch(error){if(['PGRST205','42P01'].includes(error.code))deliveriesAvailable=false;else throw error;}
   const approvedDemand=await rpc('approved_demand',{});
   const catalogue=products.map(p=>normalizeProduct({...p.definition,_version:p.version||1}));setCatalog(catalogue);
-  return {role,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
+  return {role,supplierOrders,deliveriesAvailable,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
 }
 export async function write(action,payload) {
   if(!preview) return rpc(action,{payload});
@@ -65,7 +67,7 @@ export async function write(action,payload) {
     delete local.settings[product.id];return version;
   }
   if(action==='save_count_session'){
-    local.countSessions??=[];let s=local.countSessions.find(s=>s.id===payload.id);
+    local.countSessions??=[];local.supplierOrders??=[];local.deliveriesAvailable=true;let s=local.countSessions.find(s=>s.id===payload.id);
     if(s){if(s.revision!==payload.revision)throw Error('Draft changed');Object.assign(s,structuredClone(payload),{revision:s.revision+1});}
     else{ s={...structuredClone(payload),revision:1,status:'draft'};local.countSessions.push(s); }return s.revision;
   }
@@ -73,6 +75,24 @@ export async function write(action,payload) {
     const s=local.countSessions.find(s=>s.id===payload.id);if(s.status==='published')return true;
     if(!payload.discard)for(const [id,line] of Object.entries(s.lines))if(line.confirmed){const p=local.products.find(p=>p.id===id);local.counts.push({id:crypto.randomUUID(),product_id:id,quantity:countQuantity(p,line),counted_at:line.counted_at,details:{...line,estimated:p.countMode==='bottle'&&line.opened.length>0}});}
     s.status=payload.discard?'discarded':'published';return true;
+  }
+  if(action==='save_supplier_order'){
+    const old=local.supplierOrders.find(o=>o.id===payload.id);
+    if(old&&(old.status!=='ordered'||old.version!==payload.version))throw Error('Order changed. Reopen it.');
+    const lines=payload.lines.map(l=>{const p=local.products.find(p=>p.id===l.product_id),pack=p.countMode==='bottle'?1:p.pack;return {...l,name:p.name,unit:p.unit,mode:p.countMode,pack,quantity:payload.unplanned?null:l.full*pack+l.loose};});
+    const value={...structuredClone(payload),lines,status:'ordered',version:(old?.version||0)+1,created_at:old?.created_at||now};
+    if(old)Object.assign(old,value);else local.supplierOrders.push(value);return value.version;
+  }
+  if(action==='receive_supplier_order'){
+    const order=local.supplierOrders.find(o=>o.id===payload.id);if(order.status==='received')return true;
+    if(order.version!==payload.version)throw Error('Order changed. Reopen it.');
+    const lines=order.lines.map(e=>{const a=payload.lines.find(l=>l.product_id===e.product_id);if(!a?.checked)throw Error('Confirm every product.');const received=a.full*e.pack+a.loose;return {...e,received,difference:e.quantity===null?null:received-e.quantity};});
+    if(lines.some(l=>l.difference!==null&&l.difference!==0)&&payload.note.trim().length<3)throw Error('Explain missing or extra items.');
+    const tap=lines.find(l=>l.mode==='keg'),empty=local.kegs.filter(k=>k.state==='empty').sort((a,b)=>(a.slot<=3)-(b.slot<=3)||a.slot-b.slot);
+    if(tap&&tap.received/50>empty.length)throw Error('Not enough empty keg slots. Update the keg slots first.');
+    if(tap)for(const k of empty.slice(0,tap.received/50))Object.assign(k,{state:k.slot<=3?'chilling':'warm',glasses:50,chilled_since:k.slot<=3?now:null});
+    for(const l of lines)if(l.received>0)local.movements.push({id:crypto.randomUUID(),product_id:l.product_id,quantity:l.received,reference:'Supplier order '+order.id,occurred_at:now,kind:'delivery'});
+    Object.assign(order,{status:'received',version:order.version+1,received_at:now,receipt:{lines,note:payload.note}});return true;
   }
   if(action==='submit_request'){
     if(!local.requests.some(r=>r.id===payload.id))local.requests.unshift({...payload,created_at:now,status:'pending',user_id:'preview',review_note:null});

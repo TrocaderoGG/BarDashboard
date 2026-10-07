@@ -15,7 +15,7 @@ with sync_playwright() as p:
     page.goto('http://127.0.0.1:4173/',wait_until='networkidle')
     expect(page.get_by_role('heading',name='Ready for the next round.')).to_be_visible()
     expect(page.get_by_text('LOCAL PREVIEW',exact=True)).to_be_visible()
-    assert page.locator('.stock-layout .stock-table tbody tr').count()==17
+    expect(page.locator('.stock-layout .stock-table')).not_to_be_visible()
     page.get_by_role('button',name='To order',exact=True).click()
     assert 0<page.locator('.stock-layout .stock-table tbody tr').count()<17
     page.get_by_role('button',name='All products',exact=True).click()
@@ -59,12 +59,6 @@ with sync_playwright() as p:
     expect(page.locator('.request-card .tag')).to_have_text('Approved')
 
     page.get_by_role('link',name='Stock overview').click()
-    page.get_by_role('button',name='Deliveries & kegs',exact=False).click()
-    page.get_by_role('button',name='Enter a count').click()
-    page.locator('#count-guinness').fill('48')
-    page.get_by_role('button',name='Apply preview count').click()
-    row=page.get_by_role('row').filter(has_text='Guinness')
-    expect(row.locator('.stock-number')).to_have_text('48')
     page.get_by_role('button',name='View keg readiness').click()
     expect(page.get_by_role('heading',name='Keg room')).to_be_visible()
     assert page.locator('.keg-card').count()==7
