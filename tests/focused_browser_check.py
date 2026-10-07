@@ -1,5 +1,7 @@
 """Focused phone flows, using fictional products and an ephemeral local preview."""
 from pathlib import Path
+from datetime import datetime,timedelta
+from zoneinfo import ZoneInfo
 from playwright.sync_api import sync_playwright,expect
 ROOT=Path(__file__).resolve().parents[1]
 (ROOT/'test-results').mkdir(exist_ok=True)
@@ -8,8 +10,32 @@ with sync_playwright() as p:
  browser=p.chromium.launch(executable_path=executable,headless=True,args=['--no-sandbox'])
  page=browser.new_page(viewport={'width':390,'height':844});errors=[]
  page.on('pageerror',lambda e:errors.append(str(e)))
+ today=datetime.now(ZoneInfo('Europe/Stockholm')).date()
+ def fictional_history(route):
+  response=route.fetch();state=response.json();sales=[]
+  for offset in range(1,30):
+   date=today-timedelta(days=offset)
+   if date.weekday() not in [2,4]:continue
+   factor=1 if date.weekday()==2 else 2
+   for product,quantity in [('QP - Öl på tapp 50 cl',20*factor),('QP - Cider',10*factor),('QP - Märke',8)]:
+    sales.append({'date':date.isoformat(),'product':product,'category':'QP','quantity':quantity,'gross_ore':quantity*3500,'source_rows':quantity})
+  state['sales']=sales;state['imports']=[{'range_start':(today-timedelta(days=29)).isoformat(),'range_end':today.isoformat(),'included_rows':len(sales),'excluded_rows':0,'unclassified_rows':0,'refund_rows':0}]
+  route.fulfill(response=response,json=state)
+ page.route('**/__preview/state',fictional_history)
  page.goto('http://127.0.0.1:4173/',wait_until='networkidle')
  expect(page.locator('.stock-table').first).not_to_be_visible()
+ page.goto('http://127.0.0.1:4173/#history',wait_until='networkidle')
+ expect(page.locator('#from')).to_have_value((today-timedelta(days=29)).isoformat())
+ expect(page.locator('#to')).to_have_value(today.isoformat())
+ expect(page.get_by_role('heading',name='Wednesday & Friday pubs',exact=True)).to_be_visible()
+ page.get_by_text('Customer workload estimate',exact=True).click()
+ page.locator('#pub-purchases-per-customer').fill('2')
+ expect(page.locator('#pub-customer-scenario')).to_contain_text('≈15 customers')
+ expect(page.locator('#pub-customer-scenario')).to_contain_text('≈30 customers')
+ page.screenshot(path=str(ROOT/'test-results/focused-pub-insights.png'))
+ page.get_by_role('button',name='Past 30 days',exact=True).click()
+ expect(page.locator('#from')).to_have_value((today-timedelta(days=29)).isoformat())
+ page.goto('http://127.0.0.1:4173/#stock',wait_until='networkidle')
  page.get_by_role('button',name='Count stock',exact=False).click()
  dialog=page.get_by_role('dialog',name='Stock editor')
  assert dialog.locator('.library-result').count()==0
