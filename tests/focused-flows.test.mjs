@@ -33,6 +33,12 @@ test('a product opens directly, saves immediately and never reappears as unfinis
  await host.click('step',{key:'full',delta:'1'},'counting');await host.click('save',{},'counting');assert.match(host.innerHTML,/1 saved/);
  const last=(await api.loadData()).counts.at(-1);await host.click('back',{},'counting');assert.match(host.innerHTML,/1 skipped/);
  assert.equal((await api.loadData()).counts.at(-1).id,last.id);await host.click('close',{},'counting');
+ await openInventory({refresh:async()=>{},kegs:()=>{}});await host.click('select',{id:'cola'},'counting');await host.click('step',{key:'full',delta:'1'},'counting');await host.click('close',{},'counting');
+ await api.write('record_movement',{id:crypto.randomUUID(),kind:'delivery',reference:'QP-stale-flow',occurred_at:new Date().toISOString(),lines:[{product_id:'cola',quantity:20}]});
+ await openInventory({refresh:async()=>{},kegs:()=>{}});const stale=(await api.loadData()).countSessions.find(s=>s.status==='draft'&&s.lines.cola);
+ await host.click('resume',{id:stale.id},'counting');assert.match(host.innerHTML,/Stock or product details changed/);assert.match(host.innerHTML,/data-counting="save" disabled/);
+ await host.click('restart',{},'counting');assert.ok(!host.innerHTML.includes('Stock or product details changed'));await host.click('close',{},'counting');
+
 });
 test('supplier order becomes a focused receiving list with discrepancy checks',async()=>{
  await openDeliveries({refresh:async()=>{},mode:'order'});
