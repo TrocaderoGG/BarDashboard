@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {yearlyPubAverages,pubYearGraph,pubYears,smoothPath} from '../site/pub-year.js';
+import {yearlyPubAverages,pubYearGraph,pubYears,smoothPath,rangeRibbon} from '../site/pub-year.js';
 const now=new Date('2026-10-10T12:00:00Z');
 const row=(date,quantity,category='QP',product='QP - Öl på tapp 50 cl')=>({date,quantity,gross_ore:quantity*100,category,product});
 test('monthly arithmetic means, date-weighted annual means and explicit sample dates',()=>{
@@ -32,6 +32,19 @@ test('smooth curves pass through averages and cannot exceed adjacent values',()=
   assert.ok(x1>a.x&&x2<b.x);
  });
  assert.equal(smoothPath([]),'');assert.equal(smoothPath([{x:1,y:2}]),'M 1 2');
+});
+test('range ribbons close cleanly and break at single-date or missing months',()=>{
+ const data={sales:[row('2026-01-07',10),row('2026-01-14',30),row('2026-02-04',20),row('2026-02-11',40),row('2026-03-04',25),row('2026-04-01',10),row('2026-04-08',20)],events:[],imports:[]};
+ const graph=pubYearGraph(yearlyPubAverages(data,2026,'revenue',now));
+ assert.equal((graph.match(/class="pub-year-ribbon"/g)||[]).length,2);
+ assert.ok(!graph.includes('pub-year-range'));assert.match(graph,/fill-opacity="0.13"/);
+ assert.ok(graph.indexOf('class="pub-year-ribbon"')<graph.indexOf('class="pub-year-line"'));
+ const points=[{x:0,average:5,high:1,low:8},{x:10,average:15,high:15,low:15},{x:20,average:10,high:2,low:12}];
+ const path=rangeRibbon(points);assert.ok(path.endsWith(' Z'));assert.ok(!path.includes('NaN'));
+ const curves=path.split(' C ').slice(0,3);
+ // The two upper segments retain the recorded high boundaries, including a zero-width month.
+ assert.match(curves[1],/, 10 15$/);assert.match(curves[2],/, 20 2 L 20 12$/);
+ assert.equal(rangeRibbon([]),'');assert.ok(rangeRibbon(points.slice(0,1)).endsWith(' Z'));
 });
 test('observed and marked bases stay distinct; only covered marked dates can supply genuine zeroes',()=>{
  const event=(date,kind='pub')=>({starts_at:date+'T16:00:00Z',kind,multiplier:1});

@@ -18,7 +18,7 @@ with sync_playwright() as p:
    if date.weekday() not in [2,4]:continue
    factor=1 if date.weekday()==2 else 2
    for product,quantity in [('QP - Öl på tapp 50 cl',20*factor),('QP - Cider',10*factor),('QP - Märke',8)]:
-    sales.append({'date':date.isoformat(),'product':product,'category':'QP','quantity':quantity,'gross_ore':quantity*3500,'source_rows':quantity})
+    sales.append({'date':date.isoformat(),'product':product,'category':'QP','quantity':quantity,'gross_ore':round(quantity*3500*[.7,1.15,.85,1.3][date.day%4]),'source_rows':quantity})
   state['sales']=sales;state['imports']=[{'range_start':(today-timedelta(days=29)).isoformat(),'range_end':today.isoformat(),'included_rows':len(sales),'excluded_rows':0,'unclassified_rows':0,'refund_rows':0}]
   route.fulfill(response=response,json=state)
  page.route('**/__preview/state',fictional_history)
@@ -30,6 +30,8 @@ with sync_playwright() as p:
  expect(page.get_by_role('heading',name='Wednesday & Friday · year view',exact=True)).to_be_visible()
  expect(page.locator('.pub-year-chart svg')).to_be_visible()
  assert page.locator('.pub-year-chart [stroke-dasharray]').count()==0
+ assert page.locator('.pub-year-range').count()==0
+ assert page.locator('.pub-year-ribbon').count()>0
  page.locator('#pub-year-metric').select_option('drinks')
  expect(page.locator('.pub-year-averages').locator('div').nth(0)).to_contain_text('30 drink items')
  expect(page.locator('.pub-year-averages').locator('div').nth(1)).to_contain_text('60 drink items')
@@ -41,6 +43,8 @@ with sync_playwright() as p:
  point.press('Enter')
  expect(page.locator('[data-year-detail]:visible')).to_contain_text('average')
  expect(page.locator('[data-year-detail]:visible li').first).to_contain_text('drink items')
+ page.locator('#pub-year-metric').select_option('revenue')
+ page.locator('[data-year-point]').first.focus()
  assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Year graph overflows phone viewport'
  page.screenshot(path=str(ROOT/'test-results/focused-pub-year.png'))
  expect(page.get_by_role('heading',name='Wednesday & Friday pubs',exact=True)).to_be_visible()
