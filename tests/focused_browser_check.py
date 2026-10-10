@@ -29,12 +29,18 @@ with sync_playwright() as p:
  expect(page.locator('#to')).to_have_value(today.isoformat())
  expect(page.get_by_role('heading',name='Wednesday & Friday · year view',exact=True)).to_be_visible()
  expect(page.locator('.pub-year-chart svg')).to_be_visible()
+ assert page.locator('.pub-year-chart [stroke-dasharray]').count()==0
  page.locator('#pub-year-metric').select_option('drinks')
  expect(page.locator('.pub-year-averages').locator('div').nth(0)).to_contain_text('30 drink items')
  expect(page.locator('.pub-year-averages').locator('div').nth(1)).to_contain_text('60 drink items')
  page.locator('#pub-year-basis').select_option('marked')
  expect(page.locator('.pub-year .empty')).to_be_visible()
  page.locator('#pub-year-basis').select_option('observed')
+ point=page.locator('[data-year-point]').first
+ point.focus()
+ point.press('Enter')
+ expect(page.locator('[data-year-detail]:visible')).to_contain_text('average')
+ expect(page.locator('[data-year-detail]:visible li').first).to_contain_text('drink items')
  assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Year graph overflows phone viewport'
  page.screenshot(path=str(ROOT/'test-results/focused-pub-year.png'))
  expect(page.get_by_role('heading',name='Wednesday & Friday pubs',exact=True)).to_be_visible()

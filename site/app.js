@@ -1,4 +1,4 @@
-import {pubYears,pubYearSection} from './pub-year.js';
+import {pubYears,pubYearSection,showPubYearPoint} from './pub-year.js';
 import {pastMonthRange,pubInsights,pubComparison,customerScenarioHTML} from './pub-insights.js';
 import {openTapRoom} from './tap-room.js';
 import {popularNamedProducts} from './sales-products.js';
@@ -200,3 +200,6 @@ if(document.modelContext?.registerTool){
 document.addEventListener('change',e=>{if(e.target.id==='delivery-choice'){deliveryChoice=e.target.value;render();}if(e.target.id==='review-event'){const r=data.requests.find(r=>r.id===e.target.closest('form').dataset.id);$('#request-impact').innerHTML=requestImpact(r,e.target.value);}});
 
 document.addEventListener('change',event=>{const t=event.target;if(t.id==='pub-year')pubYear=Number(t.value);else if(t.id==='pub-year-metric')pubYearMetric=t.value;else if(t.id==='pub-year-basis')pubYearBasis=t.value;else return;render();$('#'+t.id)?.focus();});
+
+for(const type of ['click','focusin'])document.addEventListener(type,event=>showPubYearPoint(event.target));
+document.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key)&&event.target.matches('[data-year-point]')){event.preventDefault();showPubYearPoint(event.target);}});
