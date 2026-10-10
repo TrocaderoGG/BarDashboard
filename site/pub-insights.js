@@ -7,13 +7,13 @@ export function pastMonthRange(now=new Date()){
 export function median(values){if(!values.length)return null;const v=[...values].sort((a,b)=>a-b),mid=Math.floor(v.length/2);return v.length%2?v[mid]:(v[mid-1]+v[mid])/2;}
 export function drinkLabel(label){return /(?:öl|cider|läsk|red\s*bull|drink|shot|snake\s*bite)/iu.test(label)&&!/(?:märke|biljett|mat\s*-)/iu.test(label);}
 const describe=values=>({typical:median(values),low:values.length?Math.min(...values):null,busy:values.length?Math.max(...values):null});
-export function pubComparison(data,range,now=new Date()){
+export function pubComparison(data,range,now=new Date(),options={}){
  const today=localDate(now),within=date=>date>=range.from&&date<=range.to&&date<today;
  const covered=date=>(data.imports||[]).some(i=>i.range_start<=date&&i.range_end>=date);
  const blocked=new Set((data.events||[]).filter(e=>e.cancelled||e.kind==='event').map(e=>localDate(e.starts_at)));
  const rows=(data.sales||[]).filter(r=>r.category==='QP'&&within(r.date)&&!blocked.has(r.date));
  const references=[...new Set((data.events||[]).filter(e=>e.kind==='pub'&&!e.cancelled&&Number(e.multiplier)===1).map(e=>localDate(e.starts_at)))].filter(d=>within(d)&&covered(d)&&!blocked.has(d)&&[3,5].includes(new Date(d+'T12:00:00Z').getUTCDay()));
- const basis=references.length?'marked':'observed';
+ const basis=options.basis==='marked'?'marked':options.basis==='observed'?'observed':references.length?'marked':'observed';
  const dates=basis==='marked'?references:[...new Set(rows.filter(r=>Number(r.quantity)>0).map(r=>r.date))];
  const labels=[...new Set(rows.filter(r=>dates.includes(r.date)&&drinkLabel(r.product)).map(r=>r.product))];
  const groups=[{weekday:3,name:'Wednesday'},{weekday:5,name:'Friday'}].map(g=>{

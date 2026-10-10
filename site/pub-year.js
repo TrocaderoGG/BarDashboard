@@ -1,0 +1,37 @@
+import {pubComparison} from './pub-insights.js';
+import {fmt,dateLabel} from './model.js';
+import {escapeHTML as esc} from './library.js';
+const mean=values=>values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null;
+export function pubYears(data){
+ const years=new Set((data.sales||[]).filter(r=>r.category==='QP').map(r=>Number(r.date.slice(0,4))));
+ for(const i of data.imports||[])for(let year=Number(i.range_start.slice(0,4));year<=Number(i.range_end.slice(0,4))&&year<2100;year++)years.add(year);
+ return [...years].filter(y=>Number.isInteger(y)&&y>=2020&&y<2100).sort((a,b)=>b-a);
+}
+export function yearlyPubAverages(data,year,metric='revenue',now=new Date(),basis='observed'){
+ if(!Number.isInteger(Number(year))||year<2020||year>=2100)throw Error('Choose a valid year.');
+ if(!['revenue','drinks'].includes(metric)||!['observed','marked'].includes(basis))throw Error('Choose a valid comparison.');
+ const comparison=pubComparison(data,{from:`${year}-01-01`,to:`${year}-12-31`,category:'all'},now,{basis});
+ const value=night=>metric==='revenue'?night.revenue/100:night.drinks;
+ const months=Array.from({length:12},(_,i)=>{const month=`${year}-${String(i+1).padStart(2,'0')}`;return {month,groups:comparison.groups.map(g=>{const nights=g.nights.filter(n=>n.date.startsWith(month));return {name:g.name,count:nights.length,dates:nights.map(n=>n.date),average:mean(nights.map(value))};})};});
+ return {year:Number(year),metric,basis,months,groups:comparison.groups.map(g=>({name:g.name,count:g.nights.length,average:mean(g.nights.map(value))}))};
+}
+export function pubYearGraph(result){
+ const {months,metric,year}=result,values=months.flatMap(m=>m.groups.map(g=>g.average)).filter(v=>v!==null);
+ if(!values.length)return '<p class="empty">No comparable Wednesday or Friday dates in this year. Mark historical normal pubs if using that filter.</p>';
+ const left=70,right=730,top=25,bottom=225,min=Math.min(0,...values),max=Math.max(1,...values),span=(max-min)*1.08;
+ const x=i=>left+i*(right-left)/11,y=v=>bottom-(v-min)/span*(bottom-top),colours=['#236c61','#b8612b'];
+ const grid=Array.from({length:5},(_,i)=>{const v=min+span*i/4;return `<line x1="${left}" x2="${right}" y1="${y(v)}" y2="${y(v)}" stroke="#dce6df"/><text x="${left-10}" y="${y(v)+4}" text-anchor="end" font-size="12">${fmt(v)}</text>`;}).join('');
+ const lines=result.groups.map((g,index)=>{
+  const segments=[];let current=[];
+  months.forEach((m,i)=>{const a=m.groups[index].average;if(a===null){if(current.length)segments.push(current);current=[];}else current.push(`${x(i)},${y(a)}`);});if(current.length)segments.push(current);
+  return segments.map(points=>`<polyline points="${points.join(' ')}" fill="none" stroke="${colours[index]}" stroke-width="3" ${index?'stroke-dasharray="7 4"':''}/>`).join('')+months.map((m,i)=>{const point=m.groups[index];if(point.average===null)return '';const label=`${dateLabel(m.month+'-01',{day:undefined,month:'long'})} ${g.name}: average ${fmt(point.average,2)} ${metric==='revenue'?'SEK':'drink items'} from ${point.count} dates`;
+   return `<circle cx="${x(i)}" cy="${y(point.average)}" r="5" fill="${colours[index]}" tabindex="0" role="img" aria-label="${esc(label)}"><title>${esc(label)}</title></circle>`;
+  }).join('');
+ }).join('');
+ const labels=months.map((m,i)=>`<text x="${x(i)}" y="250" text-anchor="middle" font-size="12">${dateLabel(m.month+'-01',{day:undefined,month:'short'})}</text><text x="${x(i)}" y="272" text-anchor="middle" font-size="10">W ${m.groups[0].count} · F ${m.groups[1].count}</text>`).join('');
+ return `<div class="pub-year-chart"><svg viewBox="0 0 760 290" role="img" aria-label="Monthly average ${metric==='revenue'?'QP sales revenue in SEK':'drink items sold'} per Wednesday and Friday date, ${year}. Exact values and sample dates are available below.">${grid}${lines}${labels}</svg></div>`;
+}
+export function pubYearSection(data,year,metric='revenue',basis='observed'){
+ const result=yearlyPubAverages(data,year,metric,new Date(),basis),years=pubYears(data);if(!years.includes(Number(year)))years.unshift(Number(year));
+ return `<section class="panel pub-year"><div class="panel-head"><div><h2>Wednesday & Friday · year view</h2><p>Monthly arithmetic averages per eligible date</p></div></div><div class="panel-body"><div class="pub-year-controls"><label>Comparison year<select id="pub-year">${years.map(y=>`<option value="${y}" ${Number(year)===y?'selected':''}>${y}</option>`).join('')}</select></label><label>Graph measure<select id="pub-year-metric"><option value="revenue" ${metric==='revenue'?'selected':''}>Sales revenue · SEK</option><option value="drinks" ${metric==='drinks'?'selected':''}>Drink items sold</option></select></label><label>Compared dates<select id="pub-year-basis"><option value="observed" ${basis==='observed'?'selected':''}>QP trading dates</option><option value="marked" ${basis==='marked'?'selected':''}>Marked normal pubs only</option></select></label></div><p class="small muted">Full-year view, independent of the date and category filters above. Uses QP only. ${basis==='observed'?'Includes dates with QP sales, excluding explicitly marked events and cancellations.':'Uses covered historical Normal pub dates with 1× usage, including genuine zero-sale dates.'} Today and future dates are excluded.</p><div class="pub-year-averages">${result.groups.map((g,i)=>`<div><strong class="weekday-key ${i?'friday':'wednesday'}">${g.name}${i?' · dashed line':' · solid line'}</strong><p>${fmt(g.average,1)} ${metric==='revenue'?'SEK':'drink items'} <small>year average</small></p><span>${g.count} dates compared</span></div>`).join('')}</div>${pubYearGraph(result)}<p class="small muted">W / F below each month shows the number of Wednesday / Friday dates. Swipe the graph on a phone. Missing months have no points; they are not treated as zero sales. One-date averages have a very small sample.</p><details class="disclosure"><summary>Monthly averages & sample dates</summary><div class="purchase-scroll"><table class="stock-table pub-year-table"><thead><tr><th>Month</th><th>Wednesday average</th><th>Dates</th><th>Friday average</th><th>Dates</th></tr></thead><tbody>${result.months.map(m=>`<tr><td>${dateLabel(m.month+'-01',{day:undefined,month:'short'})}</td><td>${fmt(m.groups[0].average,2)}</td><td>${m.groups[0].count}</td><td>${fmt(m.groups[1].average,2)}</td><td>${m.groups[1].count}</td></tr>`).join('')}</tbody></table></div>${result.months.filter(m=>m.groups.some(g=>g.count)).map(m=>`<p class="small muted"><strong>${dateLabel(m.month+'-01',{day:undefined,month:'long'})}:</strong> ${m.groups.map(g=>g.name+' '+(g.dates.map(d=>dateLabel(d)).join(', ')||'none')).join(' · ')}</p>`).join('')}</details><details class="disclosure"><summary>How the averages are calculated</summary><p>Total ${metric==='revenue'?'QP revenue after refunds':'recognized net drink items'} on eligible ${basis==='observed'?'trading':'normal-pub'} dates in each month, divided by the number of those dates. This uses an arithmetic mean; the past-month “typical” cards use a median. The year averages use all eligible dates rather than averaging monthly averages.</p><p class="small muted">Revenue includes food and merchandise. Drink items exclude merchandise and food and do not represent customers. Calendar-date totals can split a late pub across midnight. Imported data ends where the export ends; no missing sales are filled in.</p></details></div></section>`;
+}
