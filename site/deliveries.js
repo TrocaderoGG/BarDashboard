@@ -1,4 +1,4 @@
-import * as api from './api.js';
+import * as api from './api.js?v=6f6155099a19';
 import {productLibrary,escapeHTML as esc} from './library.js';
 import {fmt,today,dateLabel} from './model.js';
 const button=(label,action,attrs='')=>`<button type="button" class="btn" data-del="${action}" ${attrs}>${label}</button>`;

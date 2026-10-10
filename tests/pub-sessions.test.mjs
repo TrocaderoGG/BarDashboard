@@ -1,0 +1,28 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+test('session backfill reconciles with original history, is private and repeats safely',async()=>{
+ const db=new PGlite();
+ await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;create function auth.uid() returns uuid language sql stable as $$select (auth.jwt()->>'sub')::uuid$$;grant usage on schema auth to authenticated,anon;grant execute on all functions in schema auth to authenticated,anon;`);
+ await db.exec(await readFile('supabase/schema.sql','utf8'));
+ for(let i=0;i<2;i++)await db.exec(await readFile('supabase/pub_sessions.sql','utf8'));
+ const row=(date,quantity)=>({date,quantity,category:'QP',product:'QP - Öl',gross_ore:quantity*3500,source_rows:quantity});
+ const original={meta:{id:'fixture',filename:'fictional.csv',range_start:'2026-10-02',range_end:'2026-10-03',first_sale:'2026-10-02',last_sale:'2026-10-03',source_rows:4,included_rows:4,excluded_rows:0,unclassified_rows:0,refund_rows:0,gross_ore:14000,quantity:4},rows:[row('2026-10-02',1),row('2026-10-03',3)]};
+ await db.query('select public.import_sales_admin($1::jsonb)',[JSON.stringify(original)]);
+ const payload={import_id:'fixture',cutoff_hour:4,time_zone:'Europe/Stockholm',rows:[row('2026-10-02',3),row('2026-10-03',1)]};
+ const rpc=p=>db.query('select public.import_pub_sales_admin($1::jsonb) value',[JSON.stringify(p)]);
+ await assert.rejects(rpc({...payload,cutoff_hour:2}),/04:00/);
+ await assert.rejects(rpc({...payload,rows:[row('2026-10-02',4),row('2026-10-03',1)]}),/reconcile/);
+ await assert.rejects(rpc({...payload,rows:[row('2026-09-01',3),row('2026-10-03',1)]}),/coverage/);
+ assert.equal((await rpc(payload)).rows[0].value,true);assert.equal((await rpc(payload)).rows[0].value,false);
+ assert.equal((await db.query('select quantity from public.sales_daily order by date')).rows[0].quantity,'1');
+ assert.equal((await db.query('select quantity from public.sales_sessions_daily order by date')).rows[0].quantity,'3');
+ await db.exec("insert into public.members values('member@example.org','member',true);select set_config('request.jwt.claims','{\"sub\":\"11111111-1111-4111-8111-111111111111\",\"email\":\"member@example.org\"}',false);set role authenticated");
+ assert.equal((await db.query('select count(*) n from public.sales_sessions_daily')).rows[0].n,2);
+ await assert.rejects(rpc(payload),/permission denied/);
+ await db.exec("reset role;select set_config('request.jwt.claims','{\"email\":\"outsider@example.org\"}',false);set role authenticated");
+ assert.equal((await db.query('select count(*) n from public.sales_sessions_daily')).rows[0].n,0);
+ await db.exec('reset role;set role anon');await assert.rejects(db.query('select * from public.sales_sessions_daily'),/permission denied/);
+ await db.close();
+});

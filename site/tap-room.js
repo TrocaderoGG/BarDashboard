@@ -1,4 +1,4 @@
-import * as api from './api.js';
+import * as api from './api.js?v=6f6155099a19';
 import {escapeHTML as esc} from './library.js';
 import {kegSummary,litresToServings,KEG_SERVINGS} from './keg-model.js';
 

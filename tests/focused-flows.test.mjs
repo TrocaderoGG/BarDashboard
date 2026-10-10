@@ -13,7 +13,7 @@ class Dialog {
  async click(action,data={},prefix='inv'){const target={dataset:{[prefix]:action,...data},disabled:false};await this.handlers.click({target:{closest:()=>target},stopPropagation(){}});}
 }
 globalThis.document={createElement:()=>{host=new Dialog();return host;},body:{append(){}}};
-const api=await import('../site/api.js');
+const api=await import('../site/api.js?v=6f6155099a19');
 const {openInventory}=await import('../site/inventory.js');
 const {openDeliveries}=await import('../site/deliveries.js');
 test('a product opens directly, saves immediately and never reappears as unfinished',async()=>{

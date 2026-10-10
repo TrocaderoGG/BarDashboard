@@ -1,4 +1,4 @@
-import * as api from './api.js';
+import * as api from './api.js?v=6f6155099a19';
 import {productLibrary,escapeHTML as esc} from './library.js';
 import {productLabel,matchesTags} from './product-identity.js';
 import {countQuantity} from './inventory-model.js';

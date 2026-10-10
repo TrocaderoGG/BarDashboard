@@ -1,13 +1,13 @@
-import {pubYears,pubYearSection,showPubYearPoint} from './pub-year.js?v=99f4c9f86afd';
-import {pastMonthRange,pubInsights,pubComparison,customerScenarioHTML} from './pub-insights.js';
-import {openTapRoom} from './tap-room.js';
+import {pubYears,pubYearSection,showPubYearPoint} from './pub-year.js?v=703ee4beb6b5';
+import {pastMonthRange,pubInsights,pubComparison,customerScenarioHTML} from './pub-insights.js?v=0f6322fc3219';
+import {openTapRoom} from './tap-room.js?v=b782e465be5e';
 import {popularNamedProducts} from './sales-products.js';
 import {datedPlan,trendRate} from './planning.js';
-import {openDeliveries} from './deliveries.js';
-import {openInventory} from './inventory.js';
+import {openDeliveries} from './deliveries.js?v=b021ab43aa60';
+import {openInventory} from './inventory.js?v=a1f8be7143bd';
 import { CATALOG, PRODUCT } from './catalog.js';
 import { forecasts, fmt, dateLabel, today, localDate, aggregateSales, validateRequest, requestSummary } from './model.js';
-import * as api from './api.js';
+import * as api from './api.js?v=6f6155099a19';
 
 const $=s=>document.querySelector(s);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

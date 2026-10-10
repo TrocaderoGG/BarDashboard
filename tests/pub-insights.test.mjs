@@ -6,6 +6,15 @@ test('past month is thirty inclusive Stockholm dates across month, leap-year and
  assert.equal(pastMonthRange(new Date('2024-03-01T12:00:00Z')).from,'2024-02-01');
  assert.equal(pastMonthRange(new Date('2026-03-31T22:30:00Z')).to,'2026-04-01');
 });
+test('pub-session source requires all imports and complete 04:00 coverage, joining adjacent exports',()=>{
+ const imports=[{id:'a',range_start:'2026-09-01',range_end:'2026-09-11'},{id:'b',range_start:'2026-09-12',range_end:'2026-09-30'}];
+ const data={imports,pubImports:imports.map(i=>({id:i.id,cutoff_hour:4,time_zone:'Europe/Stockholm'})),pubSales:[row('2026-09-11','QP - Öl',10),row('2026-09-11','QP - Öl',20),row('2026-09-30','QP - Öl',100)],sales:[row('2026-09-11','QP - Öl',10)],events:[]};
+ const result=pubComparison(data,range,now);assert.equal(result.sessionGrouped,true);assert.equal(result.groups[1].drinks.typical,30);
+ assert.equal(result.groups[0].dates.length,0); // Sep 30 cannot be complete without Oct 1 coverage.
+ assert.equal(pubComparison({...data,pubImports:data.pubImports.slice(0,1)},range,now).sessionGrouped,false);
+ const beforeCutoff=pubComparison({...data,imports:[{...imports[0],range_end:'2026-09-30'}],pubImports:[data.pubImports[0]]},range,new Date('2026-09-12T00:30:00Z'));
+ assert.equal(beforeCutoff.groups[1].dates.length,0);
+});
 const row=(date,product,quantity,gross_ore=quantity*3500,category='QP')=>({date,product,quantity,gross_ore,category});
 const range={from:'2026-09-01',to:'2026-09-30',category:'all'},now=new Date('2026-10-01T12:00:00Z');
 test('weekday demand includes refunds and per-date zero labels, excluding merchandise and special categories',()=>{

@@ -20,6 +20,9 @@ with sync_playwright() as p:
    for product,quantity in [('QP - Öl på tapp 50 cl',20*factor),('QP - Cider',10*factor),('QP - Märke',8)]:
     sales.append({'date':date.isoformat(),'product':product,'category':'QP','quantity':quantity,'gross_ore':round(quantity*3500*[.7,1.15,.85,1.3][date.day%4]),'source_rows':quantity})
   state['sales']=sales;state['imports']=[{'range_start':(today-timedelta(days=29)).isoformat(),'range_end':today.isoformat(),'included_rows':len(sales),'excluded_rows':0,'unclassified_rows':0,'refund_rows':0}]
+  state['imports'][0]['id']='fictional-pub-export'
+  state['pubSales']=sales
+  state['pubImports']=[{'id':'fictional-pub-export','cutoff_hour':4,'time_zone':'Europe/Stockholm'}]
   route.fulfill(response=response,json=state)
  page.route('**/__preview/state',fictional_history)
  page.goto('http://127.0.0.1:4173/',wait_until='networkidle')
@@ -28,6 +31,7 @@ with sync_playwright() as p:
  expect(page.locator('#from')).to_have_value((today-timedelta(days=29)).isoformat())
  expect(page.locator('#to')).to_have_value(today.isoformat())
  expect(page.get_by_role('heading',name='Wednesday & Friday · year view',exact=True)).to_be_visible()
+ expect(page.locator('.pub-year')).to_contain_text('04:00 to 04:00 Stockholm time')
  expect(page.locator('.pub-year-chart svg')).to_be_visible()
  assert page.locator('.pub-year-chart [stroke-dasharray]').count()==0
  assert page.locator('.pub-year-range').count()==0

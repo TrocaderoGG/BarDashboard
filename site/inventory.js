@@ -1,5 +1,5 @@
-import * as api from './api.js';
-import {openCounting} from './counting.js';
+import * as api from './api.js?v=6f6155099a19';
+import {openCounting} from './counting.js?v=795ac4ff7060';
 import {productLibrary,escapeHTML as esc} from './library.js';
 import {PRODUCT_TYPES,validateIdentity} from './product-identity.js';
 import {templates} from './inventory-model.js';

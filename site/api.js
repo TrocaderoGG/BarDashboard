@@ -49,6 +49,9 @@ export async function loadData() {
   let internalSupplies=[],tapSuppliesAvailable=kegs.every(k=>k.version!==undefined);
   if(role==='admin')try{internalSupplies=await rows('internal_supplies');}catch(error){if(['PGRST205','42P01'].includes(error.code))tapSuppliesAvailable=false;else throw error;}
   let purchases=[],purchasesAvailable=true;
+  let pubSales=[],pubImports=[];
+  try {[pubSales,pubImports]=await Promise.all(['sales_sessions_daily','sales_session_imports'].map(rows));}
+  catch(error){if(!['PGRST205','42P01'].includes(error.code))throw error;}
   try {purchases=await rows('purchase_orders');}
   catch(error) {if(['PGRST205','42P01'].includes(error.code))purchasesAvailable=false;else throw error;}
   let countSessions=[],inventoryAvailable=products.every(p=>p.version!==undefined);
@@ -59,7 +62,7 @@ export async function loadData() {
   let catalogTagsAvailable=false;try{catalogTagsAvailable=await rpc('catalog_tags_ready',{})===true;}catch(error){if(!['PGRST202','42883'].includes(error.code))throw error;}
   const approvedDemand=await rpc('approved_demand',{});
   const catalogue=products.map(p=>normalizeProduct({...p.definition,_version:p.version||1,_stockVersion:p.stock_version}));setCatalog(catalogue);
-  return {role,countingAvailable:products.every(p=>p.stock_version!==undefined),internalSupplies,tapSuppliesAvailable,catalogTagsAvailable,supplierOrders,deliveriesAvailable,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
+  return {role,countingAvailable:products.every(p=>p.stock_version!==undefined),internalSupplies,tapSuppliesAvailable,catalogTagsAvailable,supplierOrders,deliveriesAvailable,products:catalogue,countSessions,inventoryAvailable,planningAvailable,counts,movements,events,requests,kegs,sales,imports,pubSales,pubImports,purchases,purchasesAvailable,approvedDemand,settings:Object.fromEntries(settings.map(s=>[s.id,s.definition]))};
 }
 export async function write(action,payload) {
   if(!preview) return rpc(action,{payload});
