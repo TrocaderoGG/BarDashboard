@@ -1,4 +1,4 @@
-import {pubYears,pubYearSection,showPubYearPoint} from './pub-year.js';
+import {pubYears,pubYearSection,showPubYearPoint} from './pub-year.js?v=a8b17e686589';
 import {pastMonthRange,pubInsights,pubComparison,customerScenarioHTML} from './pub-insights.js';
 import {openTapRoom} from './tap-room.js';
 import {popularNamedProducts} from './sales-products.js';
